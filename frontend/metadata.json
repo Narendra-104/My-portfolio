@@ -1,0 +1,8 @@
+{
+  "name": "Narendra Gond Portfolio",
+  "description": "A highly interactive, executive-grade professional portfolio application featuring resume trajectory visualizations, verified accreditations, and local messaging log tracking.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,39 @@
+{
+  "personalInfo": {
+    "name": "Narendra Gond",
+    "title": "Full-Stack Software Developer",
+    "coreSkills": ["React", "Node.js", "TypeScript", "Tailwind CSS", "Supabase", "AWS Cloud Services"],
+    "about": "Passionate developer focused on building scalable, community-driven web applications, efficient backend logic, and cloud architectures."
+  },
+  "projects": [
+    {
+      "title": "Local Skill Exchange Platform",
+      "techStack": ["React", "Node.js", "Supabase"],
+      "description": "A peer-to-peer learning application featuring a credit-based economy system and custom matching algorithms.",
+      "features": [
+        "Escrow system for handling service token and credit verification securely.",
+        "Interactive analytics tracking transaction and user history.",
+        "Responsive modular UI built with granular component state logic."
+      ]
+    },
+    {
+      "title": "Placement Portal System",
+      "techStack": ["React", "Scraper API", "Supabase", "Cloud Infrastructure"],
+      "description": "An enterprise recruitment pipeline managing student applicants and job processing datasets.",
+      "features": [
+        "Automated parsing architectures via custom Scraper API tools.",
+        "Comprehensive infrastructure cost estimation models for ongoing platform resource management."
+      ]
+    }
+  ],
+  "experience": [
+    {
+      "role": "AWS AI/ML & Cloud Intern",
+      "period": "July 2025",
+      "highlights": [
+        "Evaluated cloud resource workflows and presentation strategies.",
+        "Explored production system integration setups bridging functional frontends with machine learning pipelines."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-headline: 'Plus Jakarta Sans', sans-serif;
+  
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-background: var(--background);
+  --color-on-background: var(--on-background);
+  --color-surface: var(--surface);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+}
+
+:root {
+  --primary: #004ac6;
+  --secondary: #4b41e1;
+  --background: #f7f9fb;
+  --on-background: #191c1e;
+  --surface: #f7f9fb;
+  --on-surface: #191c1e;
+  --on-surface-variant: #434655;
+  --surface-container-low: #f2f4f6;
+  --surface-container-lowest: #ffffff;
+  --outline: #737686;
+  --outline-variant: #c3c6d7;
+}
+
+html.dark {
+  --primary: #6398ff;
+  --secondary: #a29eff;
+  --background: #0f1115;
+  --on-background: #e2e6ea;
+  --surface: #0f1115;
+  --on-surface: #e2e6ea;
+  --on-surface-variant: #a4a9b7;
+  --surface-container-low: #181b23;
+  --surface-container-lowest: #212530;
+  --outline: #818695;
+  --outline-variant: #3e4353;
+}
+
+/* Custom visual utilities to replicate pixel-perfect elements */
+.resume-preview-mask {
+  mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass-card {
+  background: rgba(33, 37, 48, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Custom Scroll Behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--on-surface);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-container-low);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--outline);
+}
