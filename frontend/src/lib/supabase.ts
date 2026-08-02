@@ -11,7 +11,9 @@ function getCleanUrl(): string {
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = `https://${url}`;
   }
-  // Remove trailing slash
+  // Remove trailing /rest/v1 or /rest/v1/ if user accidentally included REST endpoint path
+  url = url.replace(/\/rest\/v1\/?$/i, '');
+  // Remove trailing slashes
   return url.replace(/\/+$/, '');
 }
 
