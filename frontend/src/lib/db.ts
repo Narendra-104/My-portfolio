@@ -3,7 +3,7 @@
  * Shows clear errors if tables are missing or connection fails.
  */
 
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import type { Project, Certificate } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -263,6 +263,11 @@ export async function checkSupabaseHealth(): Promise<{
     error: undefined as string | undefined,
   };
 
+  if (!isSupabaseConfigured) {
+    result.error = 'Supabase environment variables (VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY) are missing or invalid in Vercel settings.';
+    return result;
+  }
+
   try {
     // Test projects table
     const { error: projErr } = await supabase.from('projects').select('id').limit(1);
@@ -283,10 +288,15 @@ export async function checkSupabaseHealth(): Promise<{
     result.connected = true;
 
     if (projErr || certErr || settErr) {
-      result.error = [projErr, certErr, settErr]
+      const rawMsgs = [projErr, certErr, settErr]
         .filter(Boolean)
-        .map((e: any) => e.message)
-        .join('; ');
+        .map((e: any) => e.message);
+
+      if (rawMsgs.some(m => m.includes('Invalid path') || m.includes('Failed to fetch'))) {
+        result.error = 'Invalid VITE_SUPABASE_URL format in Vercel. Ensure URL starts with https:// (e.g. https://xxxx.supabase.co)';
+      } else {
+        result.error = Array.from(new Set(rawMsgs)).join('; ');
+      }
     }
   } catch (e: any) {
     result.error = e?.message || 'Cannot connect to Supabase';

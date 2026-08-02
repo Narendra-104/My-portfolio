@@ -154,18 +154,19 @@ export default function App() {
         <div className="absolute bottom-[10%] right-[-5%] w-[450px] h-[450px] rounded-full bg-secondary/3 blur-[150px] dark:bg-secondary/4" />
       </div>
 
-      {/* Supabase DB Warning Banner — only shown to owner when tables are missing */}
+      {/* Supabase DB Warning Banner — only shown to owner when DB/tables issue */}
       {isOwner && dbHealth && !dbOk && showDbBanner && (
         <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-500 text-black px-4 py-2 flex items-center justify-between text-xs font-bold shadow-lg">
           <div className="flex items-center gap-2">
-            <AlertTriangle size={14} />
+            <AlertTriangle size={14} className="shrink-0" />
             <span>
-              ⚠️ Supabase tables not found! Edits will NOT sync to other devices.
-              Run <code className="bg-black/15 px-1 rounded font-mono">supabase_setup.sql</code> in your Supabase Dashboard → SQL Editor.
-              {dbHealth.error && <> — Error: {dbHealth.error}</>}
+              ⚠️ Supabase Cloud Sync Warning: {dbHealth.error || 'Tables missing.'}
+              {dbHealth.error?.includes('relation') || dbHealth.error?.includes('does not exist') ? (
+                <> Run <code className="bg-black/15 px-1 rounded font-mono">supabase_setup.sql</code> in your Supabase Dashboard → SQL Editor.</>
+              ) : null}
             </span>
           </div>
-          <button onClick={() => setShowDbBanner(false)} className="ml-3 p-0.5 rounded hover:bg-black/10 cursor-pointer">✕</button>
+          <button onClick={() => setShowDbBanner(false)} className="ml-3 p-0.5 rounded hover:bg-black/10 cursor-pointer shrink-0">✕</button>
         </div>
       )}
 
