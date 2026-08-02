@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavSection } from './types';
-import { trackPageView } from './lib/db';
+import { checkSupabaseHealth } from './lib/db';
+import { Cloud, CloudOff, AlertTriangle } from 'lucide-react';
 
 
 // Layout components
@@ -48,6 +49,15 @@ export default function App() {
   const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
   const [infoToast, setInfoToast] = useState<string | null>(null);
 
+  // Supabase sync health state
+  const [dbHealth, setDbHealth] = useState<{
+    connected: boolean;
+    tables: { projects: boolean; certificates: boolean; portfolio_settings: boolean };
+    storage: boolean;
+    error?: string;
+  } | null>(null);
+  const [showDbBanner, setShowDbBanner] = useState(true);
+
   useEffect(() => {
     if (infoToast) {
       const timer = setTimeout(() => {
@@ -56,6 +66,18 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [infoToast]);
+
+  // Run Supabase health check on mount
+  useEffect(() => {
+    checkSupabaseHealth().then(health => {
+      setDbHealth(health);
+      if (!health.connected || !health.tables.projects || !health.tables.portfolio_settings) {
+        console.warn('[Portfolio] Supabase health check failed:', health);
+      } else {
+        console.log('%c✅ Supabase connected — all tables OK', 'color: green; font-weight: bold');
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const isOwnerSession = localStorage.getItem('is_owner') === 'true';
@@ -121,12 +143,43 @@ export default function App() {
     setIsDarkMode((prev) => !prev);
   };
 
+  // Determine DB issues
+  const tablesOk = dbHealth?.tables.projects && dbHealth?.tables.certificates && dbHealth?.tables.portfolio_settings;
+  const dbOk = dbHealth?.connected && tablesOk;
+
   return (
     <div className="relative min-h-screen bg-background text-on-surface flex flex-col font-sans antialiased overflow-x-hidden selection:bg-primary/20 selection:text-primary">
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[10%] left-[-5%] w-96 h-96 rounded-full bg-primary/3 blur-[120px] dark:bg-primary/5" />
         <div className="absolute bottom-[10%] right-[-5%] w-[450px] h-[450px] rounded-full bg-secondary/3 blur-[150px] dark:bg-secondary/4" />
       </div>
+
+      {/* Supabase DB Warning Banner — only shown to owner when tables are missing */}
+      {isOwner && dbHealth && !dbOk && showDbBanner && (
+        <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-500 text-black px-4 py-2 flex items-center justify-between text-xs font-bold shadow-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} />
+            <span>
+              ⚠️ Supabase tables not found! Edits will NOT sync to other devices.
+              Run <code className="bg-black/15 px-1 rounded font-mono">supabase_setup.sql</code> in your Supabase Dashboard → SQL Editor.
+              {dbHealth.error && <> — Error: {dbHealth.error}</>}
+            </span>
+          </div>
+          <button onClick={() => setShowDbBanner(false)} className="ml-3 p-0.5 rounded hover:bg-black/10 cursor-pointer">✕</button>
+        </div>
+      )}
+
+      {/* Cloud sync status badge — always visible to owner */}
+      {isOwner && dbHealth && (
+        <div className={`fixed bottom-20 left-4 z-[130] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold shadow-lg border ${
+          dbOk
+            ? 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
+            : 'bg-red-500/10 border-red-500/30 text-red-500'
+        }`}>
+          {dbOk ? <Cloud size={12} /> : <CloudOff size={12} />}
+          {dbOk ? 'Cloud Synced' : 'Local Only'}
+        </div>
+      )}
 
       <AnimatePresence>
         {infoToast && (

@@ -1,6 +1,6 @@
 /**
  * db.ts — All Supabase database query functions for the portfolio.
- * Gracefully falls back (no crash) if Supabase is unavailable.
+ * Shows clear errors if tables are missing or connection fails.
  */
 
 import { supabase } from './supabase';
@@ -17,159 +17,88 @@ export interface ContactMessageRow {
   created_at?: string;
 }
 
-export interface PageViewRow {
-  section: string;
-  view_count?: number;
-  last_viewed_at?: string;
-}
+// ─── Helper: Log DB errors clearly ──────────────────────────
 
-export interface ChatLogRow {
-  user_message: string;
-  ai_response: string;
-  created_at?: string;
+function dbError(fn: string, err: any) {
+  const msg = err?.message || String(err);
+  console.error(`[Supabase][${fn}] ${msg}`);
+  // Show in browser console with table hint
+  if (msg.includes('relation') && msg.includes('does not exist')) {
+    console.error(
+      `%c⚠️ Supabase table missing! Run the SQL setup script in your Supabase Dashboard → SQL Editor.`,
+      'color: red; font-weight: bold; font-size: 14px;'
+    );
+  }
 }
 
 // ─── 1. CONTACT MESSAGES ─────────────────────────────────────
 
-/** Insert a new contact form submission */
 export async function insertContactMessage(data: Omit<ContactMessageRow, 'id' | 'created_at'>) {
   try {
     const { error } = await supabase.from('contact_messages').insert([data]);
-    if (error) console.warn('Supabase insertContactMessage error:', error.message);
+    if (error) dbError('insertContactMessage', error);
     return !error;
   } catch (e) {
-    console.warn('insertContactMessage failed (offline?):', e);
+    dbError('insertContactMessage', e);
     return false;
   }
 }
 
-/** Fetch all contact messages (owner only) */
 export async function fetchContactMessages(): Promise<ContactMessageRow[]> {
   try {
     const { data, error } = await supabase
       .from('contact_messages')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) { console.warn('fetchContactMessages error:', error.message); return []; }
+    if (error) { dbError('fetchContactMessages', error); return []; }
     return data || [];
   } catch (e) {
-    console.warn('fetchContactMessages failed (offline?):', e);
+    dbError('fetchContactMessages', e);
     return [];
   }
 }
 
-/** Delete a contact message by id */
 export async function deleteContactMessage(id: string) {
   try {
     const { error } = await supabase.from('contact_messages').delete().eq('id', id);
-    if (error) console.warn('deleteContactMessage error:', error.message);
+    if (error) dbError('deleteContactMessage', error);
     return !error;
   } catch (e) {
-    console.warn('deleteContactMessage failed:', e);
+    dbError('deleteContactMessage', e);
     return false;
   }
 }
 
-// ─── 2. PAGE VIEWS ───────────────────────────────────────────
+// ─── 2. PROJECTS ─────────────────────────────────────────────
 
-/** Upsert (increment) a page view count for a section */
-export async function trackPageView(section: string) {
-  try {
-    // First try to get existing row
-    const { data: existing } = await supabase
-      .from('page_views')
-      .select('view_count')
-      .eq('section', section)
-      .maybeSingle();
-
-    if (existing) {
-      // Increment
-      await supabase
-        .from('page_views')
-        .update({ view_count: (existing.view_count || 0) + 1, last_viewed_at: new Date().toISOString() })
-        .eq('section', section);
-    } else {
-      // Insert new
-      await supabase
-        .from('page_views')
-        .insert([{ section, view_count: 1, last_viewed_at: new Date().toISOString() }]);
-    }
-  } catch (e) {
-    // Silent fail — analytics should never break the page
-  }
-}
-
-/** Fetch all page view stats (owner analytics) */
-export async function fetchPageViews(): Promise<PageViewRow[]> {
-  try {
-    const { data, error } = await supabase
-      .from('page_views')
-      .select('*')
-      .order('view_count', { ascending: false });
-    if (error) return [];
-    return data || [];
-  } catch (e) {
-    return [];
-  }
-}
-
-// ─── 3. AI CHAT LOGS ─────────────────────────────────────────
-
-/** Log a chat exchange to Supabase */
-export async function logChatMessage(userMessage: string, aiResponse: string) {
-  try {
-    await supabase.from('chat_logs').insert([{ user_message: userMessage, ai_response: aiResponse }]);
-  } catch (e) {
-    // Silent fail
-  }
-}
-
-/** Fetch recent chat logs (owner) */
-export async function fetchChatLogs(limit = 50): Promise<ChatLogRow[]> {
-  try {
-    const { data, error } = await supabase
-      .from('chat_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (error) return [];
-    return data || [];
-  } catch (e) {
-    return [];
-  }
-}
-
-// ─── 4. PROJECTS ─────────────────────────────────────────────
-
-/** Fetch all projects from Supabase */
 export async function fetchProjects(): Promise<Project[] | null> {
   try {
     const { data, error } = await supabase
       .from('projects')
       .select('*')
       .order('created_at', { ascending: true });
-    if (error || !data || data.length === 0) return null;
+    if (error) { dbError('fetchProjects', error); return null; }
+    if (!data || data.length === 0) return null;
 
-    // Map snake_case DB columns → camelCase Project interface
     return data.map((row: any) => ({
       id: row.id,
       title: row.title,
-      category: row.category,
-      description: row.description,
-      longDescription: row.long_description,
-      image: row.image,
-      tags: row.tags || [],
-      link: row.link,
-      github: row.github,
-      metrics: row.metrics || [],
+      category: row.category || '',
+      description: row.description || '',
+      longDescription: row.long_description || '',
+      image: row.image || '',
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      link: row.link || undefined,
+      github: row.github || undefined,
+      metrics: Array.isArray(row.metrics) ? row.metrics : [],
     }));
   } catch (e) {
+    dbError('fetchProjects', e);
     return null;
   }
 }
 
-/** Upsert (insert or update) a project in Supabase */
-export async function upsertProject(project: Project) {
+export async function upsertProject(project: Project): Promise<boolean> {
   try {
     const { error } = await supabase.from('projects').upsert([{
       id: project.id,
@@ -179,55 +108,56 @@ export async function upsertProject(project: Project) {
       long_description: project.longDescription,
       image: project.image,
       tags: project.tags,
-      link: project.link,
-      github: project.github,
-      metrics: project.metrics,
-    }]);
-    if (error) console.warn('upsertProject error:', error.message);
-    return !error;
+      link: project.link || null,
+      github: project.github || null,
+      metrics: project.metrics || [],
+    }], { onConflict: 'id' });
+    if (error) { dbError('upsertProject', error); return false; }
+    return true;
   } catch (e) {
-    console.warn('upsertProject failed:', e);
+    dbError('upsertProject', e);
     return false;
   }
 }
 
-/** Delete a project from Supabase */
-export async function deleteProject(id: string) {
+export async function deleteProject(id: string): Promise<boolean> {
   try {
     const { error } = await supabase.from('projects').delete().eq('id', id);
-    return !error;
+    if (error) { dbError('deleteProject', error); return false; }
+    return true;
   } catch (e) {
+    dbError('deleteProject', e);
     return false;
   }
 }
 
-// ─── 5. CERTIFICATES ─────────────────────────────────────────
+// ─── 3. CERTIFICATES ─────────────────────────────────────────
 
-/** Fetch all certificates from Supabase */
 export async function fetchCertificates(): Promise<Certificate[] | null> {
   try {
     const { data, error } = await supabase
       .from('certificates')
       .select('*')
       .order('created_at', { ascending: true });
-    if (error || !data || data.length === 0) return null;
+    if (error) { dbError('fetchCertificates', error); return null; }
+    if (!data || data.length === 0) return null;
 
     return data.map((row: any) => ({
       id: row.id,
       title: row.title,
-      issuer: row.issuer,
-      date: row.date,
-      certId: row.cert_id,
-      image: row.image,
-      verifyUrl: row.verify_url,
+      issuer: row.issuer || '',
+      date: row.date || '',
+      certId: row.cert_id || '',
+      image: row.image || '',
+      verifyUrl: row.verify_url || '',
     }));
   } catch (e) {
+    dbError('fetchCertificates', e);
     return null;
   }
 }
 
-/** Upsert (insert or update) a certificate in Supabase */
-export async function upsertCertificate(cert: Certificate) {
+export async function upsertCertificate(cert: Certificate): Promise<boolean> {
   try {
     const { error } = await supabase.from('certificates').upsert([{
       id: cert.id,
@@ -237,31 +167,29 @@ export async function upsertCertificate(cert: Certificate) {
       cert_id: cert.certId,
       image: cert.image,
       verify_url: cert.verifyUrl,
-    }]);
-    if (error) console.warn('upsertCertificate error:', error.message);
-    return !error;
+    }], { onConflict: 'id' });
+    if (error) { dbError('upsertCertificate', error); return false; }
+    return true;
   } catch (e) {
+    dbError('upsertCertificate', e);
     return false;
   }
 }
 
-/** Delete a certificate from Supabase */
-export async function deleteCertificate(id: string) {
+export async function deleteCertificate(id: string): Promise<boolean> {
   try {
     const { error } = await supabase.from('certificates').delete().eq('id', id);
-    return !error;
+    if (error) { dbError('deleteCertificate', error); return false; }
+    return true;
   } catch (e) {
+    dbError('deleteCertificate', e);
     return false;
   }
 }
 
-// ─── 6. IMAGE STORAGE UPLOAD ──────────────────────────────────
+// ─── 4. IMAGE STORAGE UPLOAD ──────────────────────────────────
 
-/**
- * Upload a File object directly to Supabase Storage bucket and return its public URL.
- * Falls back gracefully if bucket or connection fails.
- */
-export async function uploadImageToSupabase(file: File, bucket = 'portfolio-photos'): Promise<string | null> {
+export async function uploadImageToSupabase(file: File, bucket = 'portfolio-images'): Promise<string | null> {
   try {
     const fileExt = file.name.split('.').pop() || 'jpg';
     const filePath = `uploads/${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
@@ -271,33 +199,20 @@ export async function uploadImageToSupabase(file: File, bucket = 'portfolio-phot
       .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
     if (uploadError) {
-      console.warn(`Supabase Storage upload to bucket '${bucket}' warning:`, uploadError.message);
-      // Try fallback bucket 'portfolio' if custom bucket fails
-      if (bucket !== 'portfolio') {
-        const { error: fallbackError } = await supabase.storage
-          .from('portfolio')
-          .upload(filePath, file, { cacheControl: '3600', upsert: true });
-        if (!fallbackError) {
-          const { data } = supabase.storage.from('portfolio').getPublicUrl(filePath);
-          return data.publicUrl;
-        }
-      }
+      dbError(`uploadImageToSupabase[${bucket}]`, uploadError);
       return null;
     }
 
     const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
     return urlData?.publicUrl || null;
   } catch (e) {
-    console.warn('uploadImageToSupabase exception:', e);
+    dbError('uploadImageToSupabase', e);
     return null;
   }
 }
 
-// ─── 7. PORTFOLIO SETTINGS & SITE DATA ────────────────────────
+// ─── 5. PORTFOLIO SETTINGS (text edits, about, skills, etc.) ─
 
-/**
- * Fetch generic key-value setting from 'portfolio_settings' table
- */
 export async function fetchPortfolioSetting<T>(key: string): Promise<T | null> {
   try {
     const { data, error } = await supabase
@@ -305,25 +220,77 @@ export async function fetchPortfolioSetting<T>(key: string): Promise<T | null> {
       .select('value')
       .eq('key', key)
       .maybeSingle();
-    if (error || !data) return null;
-    return data.value as T;
+    if (error) { dbError(`fetchPortfolioSetting[${key}]`, error); return null; }
+    return data?.value as T ?? null;
   } catch (e) {
+    dbError(`fetchPortfolioSetting[${key}]`, e);
     return null;
   }
 }
 
-/**
- * Upsert generic key-value setting in 'portfolio_settings' table
- */
 export async function upsertPortfolioSetting(key: string, value: any): Promise<boolean> {
   try {
     const { error } = await supabase
       .from('portfolio_settings')
-      .upsert([{ key, value, updated_at: new Date().toISOString() }], { onConflict: 'key' });
-    if (error) console.warn(`upsertPortfolioSetting error [${key}]:`, error.message);
-    return !error;
+      .upsert(
+        [{ key, value, updated_at: new Date().toISOString() }],
+        { onConflict: 'key' }
+      );
+    if (error) { dbError(`upsertPortfolioSetting[${key}]`, error); return false; }
+    return true;
   } catch (e) {
+    dbError(`upsertPortfolioSetting[${key}]`, e);
     return false;
   }
 }
 
+// ─── 6. HEALTH CHECK ─────────────────────────────────────────
+
+/**
+ * Test whether Supabase is reachable and tables exist.
+ * Returns an object with status for each table.
+ */
+export async function checkSupabaseHealth(): Promise<{
+  connected: boolean;
+  tables: { projects: boolean; certificates: boolean; portfolio_settings: boolean };
+  storage: boolean;
+  error?: string;
+}> {
+  const result = {
+    connected: false,
+    tables: { projects: false, certificates: false, portfolio_settings: false },
+    storage: false,
+    error: undefined as string | undefined,
+  };
+
+  try {
+    // Test projects table
+    const { error: projErr } = await supabase.from('projects').select('id').limit(1);
+    result.tables.projects = !projErr;
+
+    // Test certificates table
+    const { error: certErr } = await supabase.from('certificates').select('id').limit(1);
+    result.tables.certificates = !certErr;
+
+    // Test portfolio_settings table
+    const { error: settErr } = await supabase.from('portfolio_settings').select('key').limit(1);
+    result.tables.portfolio_settings = !settErr;
+
+    // Test storage
+    const { error: storErr } = await supabase.storage.from('portfolio-images').list('', { limit: 1 });
+    result.storage = !storErr;
+
+    result.connected = true;
+
+    if (projErr || certErr || settErr) {
+      result.error = [projErr, certErr, settErr]
+        .filter(Boolean)
+        .map((e: any) => e.message)
+        .join('; ');
+    }
+  } catch (e: any) {
+    result.error = e?.message || 'Cannot connect to Supabase';
+  }
+
+  return result;
+}
