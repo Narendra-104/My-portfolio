@@ -72,7 +72,6 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
   // Sync state with Supabase Database, LocalStorage fallback, or default data
   useEffect(() => {
     async function loadProjects() {
-      setIsLoading(true);
       try {
         // 1. Primary: Fetch live projects from Supabase DB
         const dbProjects = await fetchProjects();
@@ -98,12 +97,16 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
         setProjects(PROJECTS_DATA);
       } catch (err) {
         console.error('Failed to load projects:', err);
-        setProjects(PROJECTS_DATA);
       } finally {
         setIsLoading(false);
       }
     }
+
     loadProjects();
+
+    // Auto-refresh every 3 seconds to pull live updates on other devices
+    const interval = setInterval(loadProjects, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const categories = [

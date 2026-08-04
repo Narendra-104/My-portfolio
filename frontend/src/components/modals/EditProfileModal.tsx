@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, User, Briefcase, FileText, Check, RotateCcw, AlertCircle, Image, KeyRound } from 'lucide-react';
+import { X, Upload, User, Briefcase, FileText, Check, RotateCcw, AlertCircle, Image, KeyRound, Loader2 } from 'lucide-react';
+import { uploadImageToSupabase, upsertPortfolioSetting } from '../../lib/db';
 
 interface ProfileData {
   name: string;
@@ -30,6 +31,7 @@ export default function EditProfileModal({
   const [tagline, setTagline] = useState(profile.tagline);
   const [statusTag, setStatusTag] = useState(profile.statusTag);
   const [avatarImage, setAvatarImage] = useState(profile.avatarImage);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const [customPasscode, setCustomPasscode] = useState(() => {
@@ -40,16 +42,32 @@ export default function EditProfileModal({
 
   if (!isOpen) return null;
 
-  // Process selected file locally and update preview
-  const handleFile = (file: File) => {
+  // Process selected file & upload to Supabase Storage
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Only image files are supported (JPEG, PNG, WEBP, etc.)');
       return;
     }
 
+    setIsUploadingPhoto(true);
+
+    try {
+      // 1. Try uploading to Supabase Storage bucket for permanent CDN URL
+      const cdnUrl = await uploadImageToSupabase(file, 'portfolio-photos');
+      if (cdnUrl) {
+        setAvatarImage(cdnUrl);
+        setIsUploadingPhoto(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Supabase storage upload failed, converting to local preview:', err);
+    }
+
+    // 2. Fallback to FileReader base64 preview
     const reader = new FileReader();
     reader.onload = (event) => {
       setAvatarImage(event.target?.result as string);
+      setIsUploadingPhoto(false);
     };
     reader.readAsDataURL(file);
   };
@@ -80,7 +98,7 @@ export default function EditProfileModal({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name.trim()) {
@@ -94,14 +112,19 @@ export default function EditProfileModal({
 
     localStorage.setItem('owner_custom_passcode', customPasscode.trim() || 'narendra2026');
 
-    onSave({
+    const updatedProfile = {
       name: name.trim(),
       role: role.trim(),
       tagline: tagline.trim(),
       statusTag: statusTag.trim(),
       avatarImage: avatarImage,
       fallbackImage: profile.fallbackImage
-    });
+    };
+
+    // Save to Supabase DB for multi-device sync
+    await upsertPortfolioSetting('portfolio_custom_profile', updatedProfile);
+
+    onSave(updatedProfile);
 
     setShowSavedFeedback(true);
     setTimeout(() => {

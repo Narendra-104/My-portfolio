@@ -4,6 +4,7 @@ import { Briefcase, ArrowDown, Edit, Sparkles } from 'lucide-react';
 import { HERO_DATA } from "../../data";
 import { NavSection } from '../../types';
 import EditProfileModal from "../modals/EditProfileModal";
+import { fetchPortfolioSetting, upsertPortfolioSetting } from '../../lib/db';
 
 interface HeroProps {
   onNavigate: (section: NavSection) => void;
@@ -27,6 +28,18 @@ export default function Hero({ onNavigate, isOwner = false }: HeroProps) {
   const [imgSrc, setImgSrc] = useState(profile.avatarImage);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // Load profile from Supabase DB on mount
+  useEffect(() => {
+    async function loadDbProfile() {
+      const dbProfile = await fetchPortfolioSetting<any>('portfolio_custom_profile');
+      if (dbProfile && dbProfile.name) {
+        setProfile(dbProfile);
+        localStorage.setItem('portfolio_custom_profile', JSON.stringify(dbProfile));
+      }
+    }
+    loadDbProfile();
+  }, []);
+
   // Sync image source if profile updates
   useEffect(() => {
     setImgSrc(profile.avatarImage);
@@ -46,13 +59,14 @@ export default function Hero({ onNavigate, isOwner = false }: HeroProps) {
     };
   }, []);
 
-  const handleSaveProfile = (updated: typeof profile) => {
+  const handleSaveProfile = async (updated: typeof profile) => {
     setProfile(updated);
     localStorage.setItem('portfolio_custom_profile', JSON.stringify(updated));
+    await upsertPortfolioSetting('portfolio_custom_profile', updated);
     window.dispatchEvent(new CustomEvent('portfolio_profile_updated', { detail: updated }));
   };
 
-  const handleResetProfile = () => {
+  const handleResetProfile = async () => {
     const defaults = {
       name: HERO_DATA.name,
       role: HERO_DATA.role,
@@ -63,6 +77,7 @@ export default function Hero({ onNavigate, isOwner = false }: HeroProps) {
     };
     setProfile(defaults);
     localStorage.removeItem('portfolio_custom_profile');
+    await upsertPortfolioSetting('portfolio_custom_profile', defaults);
     window.dispatchEvent(new CustomEvent('portfolio_profile_updated', { detail: defaults }));
   };
 

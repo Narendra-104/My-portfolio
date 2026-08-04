@@ -113,7 +113,6 @@ export default function Certificates({ isOwner = false }: CertificatesProps) {
   // Sync state with Supabase Database, LocalStorage fallback, or default data
   useEffect(() => {
     async function loadCertificates() {
-      setIsLoading(true);
       try {
         // 1. Fetch live certificates from Supabase DB
         const dbCerts = await fetchCertificates();
@@ -137,12 +136,15 @@ export default function Certificates({ isOwner = false }: CertificatesProps) {
         setCertificates(CERTIFICATES_DATA);
       } catch (err) {
         console.error('Failed to load certificates:', err);
-        setCertificates(CERTIFICATES_DATA);
       } finally {
         setIsLoading(false);
       }
     }
+
     loadCertificates();
+
+    const interval = setInterval(loadCertificates, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredCertificates = certificates.filter(cert => {
