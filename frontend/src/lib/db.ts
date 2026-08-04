@@ -217,22 +217,50 @@ export async function deleteProject(id: string): Promise<boolean> {
 
 export async function fetchCertificates(): Promise<Certificate[] | null> {
   try {
-    const { data, error } = await supabase
+    // 1. Fetch from 'certificates' table
+    const { data: certRows, error: certErr } = await supabase
       .from('certificates')
       .select('*')
       .order('created_at', { ascending: true });
-    if (error) { dbError('fetchCertificates', error); return null; }
-    if (!data || data.length === 0) return null;
 
-    return data.map((row: any) => ({
+    // 2. Fetch backup from 'portfolio_settings'
+    const settingsBackup = await fetchPortfolioSetting<Certificate[]>('portfolio_custom_certificates');
+
+    if (certErr && (!settingsBackup || settingsBackup.length === 0)) {
+      dbError('fetchCertificates', certErr);
+      return null;
+    }
+
+    const dbCerts: Certificate[] = (certRows || []).map((row: any) => ({
       id: String(row.id),
-      title: row.title,
+      title: row.title || 'Certificate',
       issuer: row.issuer || '',
       date: row.date || '',
       certId: row.cert_id || row.certId || '',
       image: row.image || row.image_url || row.url || '',
       verifyUrl: row.verify_url || row.verifyUrl || '',
     }));
+
+    if (dbCerts.length > 0) {
+      if (settingsBackup && settingsBackup.length > 0) {
+        const settingsMap = new Map(settingsBackup.map(c => [c.id, c]));
+        return dbCerts.map(c => {
+          const extra = settingsMap.get(c.id);
+          return {
+            ...c,
+            image: c.image || extra?.image || '',
+            verifyUrl: c.verifyUrl || extra?.verifyUrl || '',
+          };
+        });
+      }
+      return dbCerts;
+    }
+
+    if (settingsBackup && settingsBackup.length > 0) {
+      return settingsBackup;
+    }
+
+    return null;
   } catch (e) {
     dbError('fetchCertificates', e);
     return null;
@@ -243,31 +271,59 @@ export async function upsertCertificate(cert: Certificate): Promise<boolean> {
   let success = false;
   try {
     const imageUrl = cert.image || '';
-    const payload = {
+
+    // Attempt 1: Standard 8-column payload matching Supabase setup
+    const payload: any = {
       id: cert.id,
       title: cert.title,
       issuer: cert.issuer,
       date: cert.date,
       cert_id: cert.certId,
       image: imageUrl,
-      image_url: imageUrl,
       verify_url: cert.verifyUrl,
     };
-    const { error } = await supabase.from('certificates').upsert([payload], { onConflict: 'id' });
-    if (!error) success = true;
-    else dbError('upsertCertificate', error);
+
+    const { error: err1 } = await supabase.from('certificates').upsert([payload], { onConflict: 'id' });
+
+    if (!err1) {
+      success = true;
+    } else {
+      dbError('upsertCertificate (Attempt 1)', err1);
+
+      // Attempt 2: Minimal payload without id if id is auto-uuid in DB
+      const minimalPayload: any = {
+        title: cert.title,
+        issuer: cert.issuer,
+        date: cert.date,
+        cert_id: cert.certId,
+        image: imageUrl,
+        verify_url: cert.verifyUrl,
+      };
+
+      const { error: err2 } = await supabase.from('certificates').insert([minimalPayload]);
+      if (!err2) success = true;
+      else dbError('upsertCertificate (Attempt 2)', err2);
+    }
   } catch (e) {
     dbError('upsertCertificate', e);
   }
 
-  // Backup to portfolio_settings
+  // Backup: Always save complete list to portfolio_settings table
   try {
     const current = (await fetchCertificates()) || [];
-    const idx = current.findIndex(c => c.id === cert.id);
-    const updated = idx >= 0 ? current.map((c, i) => i === idx ? cert : c) : [...current, cert];
+    const idx = current.findIndex(c => c.id === cert.id || c.title === cert.title);
+    let updated: Certificate[];
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = cert;
+    } else {
+      updated = [...current, cert];
+    }
     await upsertPortfolioSetting('portfolio_custom_certificates', updated);
     success = true;
-  } catch (e) {}
+  } catch (e) {
+    dbError('upsertCertificate (portfolio_settings backup)', e);
+  }
 
   return success;
 }

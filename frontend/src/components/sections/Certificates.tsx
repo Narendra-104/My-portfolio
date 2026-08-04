@@ -198,8 +198,14 @@ export default function Certificates({ isOwner = false }: CertificatesProps) {
     e.preventDefault();
     setIsSaving(true);
 
+    const newId = editingCert
+      ? editingCert.id
+      : (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : 'cert_' + Date.now());
+
     const payload: Certificate = {
-      id: editingCert ? editingCert.id : 'cert_' + Date.now(),
+      id: newId,
       title: formTitle,
       issuer: formIssuer,
       date: formDate,

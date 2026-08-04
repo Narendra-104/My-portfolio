@@ -267,8 +267,14 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
       metricsArray.push({ label: formMetric2Label, value: formMetric2Value });
     }
 
+    const newId = editingProject
+      ? editingProject.id
+      : (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : 'proj_' + Date.now());
+
     const payload: Project = {
-      id: editingProject ? editingProject.id : 'proj_' + Date.now(),
+      id: newId,
       title: formTitle,
       category: formCategory,
       description: formDesc,
