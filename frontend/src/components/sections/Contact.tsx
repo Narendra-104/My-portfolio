@@ -297,7 +297,7 @@ export default function Contact({ isOwner = false, onShowGithubId, onShowLinkedi
                 <div>
                   <h3 className="font-headline text-sm font-bold text-on-surface">Email Inquiry</h3>
                   <p className="font-sans text-xs text-on-surface-variant font-medium mt-0.5">
-                    narendragond012@gmail.com
+                    narendragond014@gmail.com
                   </p>
                 </div>
               </div>
