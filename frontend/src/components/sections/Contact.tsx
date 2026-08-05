@@ -445,12 +445,15 @@ export default function Contact({ isOwner = false, onShowGithubId, onShowLinkedi
                         </div>
                       )
                     ) : (
-                      <button
-                        onClick={() => setRestrictedModalData({ platform: 'LinkedIn', handle: `@${linkedinHandle}` })}
-                        className="flex items-center gap-1.5 text-[11px] font-headline font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                      <a
+                        href={linkedinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] font-bold text-white bg-primary hover:opacity-90 px-2.5 py-1.5 rounded-lg transition-all"
+                        title="View LinkedIn Profile"
                       >
-                        <Lock size={12} /> View Details
-                      </button>
+                        <ExternalLink size={10} /> Visit Profile
+                      </a>
                     )}
                   </div>
                 </div>
@@ -530,12 +533,15 @@ export default function Contact({ isOwner = false, onShowGithubId, onShowLinkedi
                         </div>
                       )
                     ) : (
-                      <button
-                        onClick={() => setRestrictedModalData({ platform: 'GitHub', handle: `@${githubHandle}` })}
-                        className="flex items-center gap-1.5 text-[11px] font-headline font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                      <a
+                        href={githubUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[10px] font-bold text-white bg-primary hover:opacity-90 px-2.5 py-1.5 rounded-lg transition-all"
+                        title="View GitHub Profile"
                       >
-                        <Lock size={12} /> View Details
-                      </button>
+                        <ExternalLink size={10} /> Visit Profile
+                      </a>
                     )}
                   </div>
                 </div>

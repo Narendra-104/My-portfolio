@@ -24,27 +24,20 @@ export default function Footer({
     { label: 'GitHub', url: 'https://github.com/Narendra-104', isGithub: true }
   ];
 
-  // 🔒 RESTRICT SOCIAL LINKS TO OWNER ONLY
+  // Allow ALL visitors to open LinkedIn & GitHub, but only owner sees the ID modal
   const handleSocialClick = (e: React.MouseEvent, link: typeof links[number]) => {
     if (link.isLinkedin || link.isGithub) {
-      if (!isOwner) {
-        e.preventDefault();
-        if (onOpenLogin) {
-          onOpenLogin(); // Prompt owner to log in
-        } else {
-          alert('Owner access required to view direct LinkedIn & GitHub profiles.');
+      // If owner is logged in, show the special ID modal instead of navigating
+      if (isOwner) {
+        if (link.isLinkedin && onShowLinkedinId) {
+          e.preventDefault();
+          onShowLinkedinId();
+        } else if (link.isGithub && onShowGithubId) {
+          e.preventDefault();
+          onShowGithubId();
         }
-        return;
       }
-
-      // If Owner is logged in, proceed with custom ID handlers or default link
-      if (link.isLinkedin && onShowLinkedinId) {
-        e.preventDefault();
-        onShowLinkedinId();
-      } else if (link.isGithub && onShowGithubId) {
-        e.preventDefault();
-        onShowGithubId();
-      }
+      // Non-owner visitors: just let the anchor navigate normally (target="_blank")
     }
   };
 
@@ -91,14 +84,9 @@ export default function Footer({
                   onClick={(e) => handleSocialClick(e, link)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`font-sans text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 ${isSocial && !isOwner
-                      ? 'text-on-surface-variant/60 hover:text-primary'
-                      : 'text-on-surface-variant hover:text-primary'
-                    }`}
-                  title={isSocial && !isOwner ? 'Owner access required' : undefined}
+                  className={`font-sans text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 text-on-surface-variant hover:text-primary`}
                 >
                   {link.label}
-                  {isSocial && !isOwner && <Lock size={9} className="opacity-70 text-amber-500" />}
                 </a>
               );
             }
