@@ -287,61 +287,84 @@ export default function App() {
             </motion.div>
           </>
         )}
-      </AnimatePresence>
-
-      {/* GitHub ID Modal */}
       <AnimatePresence>
-        {isGithubModalOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsGithubModalOpen(false)}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[170] cursor-pointer"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[180] w-[90%] max-w-sm bg-surface-container-low border border-outline-variant/20 p-6 rounded-2xl shadow-2xl space-y-4"
+  {isGithubModalOpen && (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={() => setIsGithubModalOpen(false)}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[170] cursor-pointer"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[180] w-[90%] max-w-sm bg-surface-container-low border border-outline-variant/20 p-6 rounded-2xl shadow-2xl space-y-4"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-outline-variant/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Github size={20} className="text-primary" />
+            <h3 className="font-headline font-bold text-base text-on-surface">
+              GitHub Profile ID
+            </h3>
+          </div>
+          <button
+            onClick={() => setIsGithubModalOpen(false)}
+            className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Username Display Area */}
+        <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/15 text-center space-y-1">
+          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+            Username / Handle
+          </span>
+          <p className="font-mono text-sm font-bold text-primary select-all">
+            Narendra-104
+          </p>
+        </div>
+
+        {/* Action Buttons - Role Restricted */}
+        <div className="flex gap-2 pt-2">
+          {isOwner ? (
+            /* OWNER ACCESS: Direct link to GitHub */
+            <a
+              href="https://github.com/Narendra-104"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 bg-primary text-white font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
             >
-              <div className="flex items-center justify-between border-b border-outline-variant/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <Github size={20} className="text-primary" />
-                  <h3 className="font-headline font-bold text-base text-on-surface">GitHub Profile ID</h3>
-                </div>
-                <button
-                  onClick={() => setIsGithubModalOpen(false)}
-                  className="p-1 rounded-lg hover:bg-surface-container-high text-on-surface-variant cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/15 text-center space-y-1">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Username / Handle</span>
-                <p className="font-mono text-sm font-bold text-primary">Narendra-104</p>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <a
-                  href="https://github.com/Narendra-104"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 bg-primary text-white font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
-                >
-                  Visit Profile <ExternalLink size={12} />
-                </a>
-                <button
-                  onClick={() => setIsGithubModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-headline font-bold bg-surface-container-high text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              Visit Profile <ExternalLink size={12} />
+            </a>
+          ) : (
+            /* VIEWER ACCESS: Read-only handle / Copy option */
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText("Narendra-104");
+                alert("GitHub username copied to clipboard!");
+              }}
+              className="flex-1 bg-surface-container-high text-on-surface font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-surface-container-highest transition-colors cursor-pointer"
+            >
+              Copy Handle
+            </button>
+          )}
+
+          <button
+            onClick={() => setIsGithubModalOpen(false)}
+            className="px-4 py-2.5 text-xs font-headline font-bold bg-surface-container-high text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </>
+  )}
+</AnimatePresence>
 
       {/* LinkedIn ID Modal */}
       <AnimatePresence>
