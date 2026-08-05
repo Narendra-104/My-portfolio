@@ -307,7 +307,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <Github size={20} className="text-primary" />
                   <h3 className="font-headline font-bold text-base text-on-surface">
-                    GitHub Profile ID
+                    GitHub Profile
                   </h3>
                 </div>
                 <button
@@ -328,32 +328,23 @@ export default function App() {
               </div>
 
               <div className="flex gap-2 pt-2">
-                {isOwner ? (
-                  <a
-                    href="https://github.com/Narendra-104"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-primary text-white font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
-                  >
-                    Visit Profile <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText("Narendra-104");
-                      alert("GitHub username copied to clipboard!");
-                    }}
-                    className="flex-1 bg-surface-container-high text-on-surface font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-surface-container-highest transition-colors cursor-pointer"
-                  >
-                    Copy Handle
-                  </button>
-                )}
+                <a
+                  href="https://github.com/Narendra-104"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-primary text-white font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+                >
+                  Visit Profile <ExternalLink size={12} />
+                </a>
 
                 <button
-                  onClick={() => setIsGithubModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-headline font-bold bg-surface-container-high text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer"
+                  onClick={() => {
+                    navigator.clipboard.writeText("Narendra-104");
+                    alert("GitHub handle copied to clipboard!");
+                  }}
+                  className="px-3 py-2.5 text-xs font-headline font-bold bg-surface-container-high text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer"
                 >
-                  Close
+                  Copy Handle
                 </button>
               </div>
             </motion.div>
@@ -381,7 +372,7 @@ export default function App() {
               <div className="flex items-center justify-between border-b border-outline-variant/10 pb-3">
                 <div className="flex items-center gap-2">
                   <Linkedin size={20} className="text-primary" />
-                  <h3 className="font-headline font-bold text-base text-on-surface">LinkedIn Profile ID</h3>
+                  <h3 className="font-headline font-bold text-base text-on-surface">LinkedIn Profile</h3>
                 </div>
                 <button
                   onClick={() => setIsLinkedinModalOpen(false)}
@@ -397,32 +388,23 @@ export default function App() {
               </div>
 
               <div className="flex gap-2 pt-2">
-                {isOwner ? (
-                  <a
-                    href="https://linkedin.com/in/narendra-gond-83a050329"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-primary text-white font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
-                  >
-                    Visit Profile <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText("narendra-gond-83a050329");
-                      alert("LinkedIn ID copied to clipboard!");
-                    }}
-                    className="flex-1 bg-surface-container-high text-on-surface font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-surface-container-highest transition-colors cursor-pointer"
-                  >
-                    Copy Handle
-                  </button>
-                )}
+                <a
+                  href="https://linkedin.com/in/narendra-gond-83a050329"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-primary text-white font-headline text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+                >
+                  Visit Profile <ExternalLink size={12} />
+                </a>
 
                 <button
-                  onClick={() => setIsLinkedinModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-headline font-bold bg-surface-container-high text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer"
+                  onClick={() => {
+                    navigator.clipboard.writeText("narendra-gond-83a050329");
+                    alert("LinkedIn ID copied to clipboard!");
+                  }}
+                  className="px-3 py-2.5 text-xs font-headline font-bold bg-surface-container-high text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer"
                 >
-                  Close
+                  Copy Handle
                 </button>
               </div>
             </motion.div>
