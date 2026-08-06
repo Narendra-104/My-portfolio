@@ -499,45 +499,6 @@ export default function PortfolioChat() {
 
     loadAllData();
   }, []);
-          customAbout: customAbout.status === 'fulfilled' ? customAbout.value : null,
-          customSkills: customSkills.status === 'fulfilled' ? customSkills.value : null,
-          customExperience: customExperience.status === 'fulfilled' ? customExperience.value : null,
-          customProfile: customProfile.status === 'fulfilled' ? customProfile.value : null,
-          loaded: true,
-        };
-
-        setLiveData(newData);
-
-        const projectCount = newData.projects.length;
-        const certCount = newData.certificates.length;
-
-        setMessages(prev => [
-          ...prev,
-          {
-            id: 'data-loaded',
-            sender: 'ai',
-            text: `✅ **Live data loaded!**\n• 🚀 ${projectCount} project${projectCount !== 1 ? 's' : ''} from database\n• 🏆 ${certCount} certificate${certCount !== 1 ? 's' : ''} from database\n\n**What would you like to know about Narendra?** Ask me anything! 😊`,
-            timestamp: new Date(),
-          },
-        ]);
-      } catch (err) {
-        setLiveData(prev => ({ ...prev, loaded: true }));
-        setMessages(prev => [
-          ...prev,
-          {
-            id: 'data-fallback',
-            sender: 'ai',
-            text: `ℹ️ Using cached portfolio data. I can still answer all questions about Narendra's skills, projects, experience, and more!\n\nWhat would you like to know? 😊`,
-            timestamp: new Date(),
-          },
-        ]);
-      } finally {
-        setIsLoadingData(false);
-      }
-    };
-
-    loadAllData();
-  }, []);
 
   const refreshData = async () => {
     setIsLoadingData(true);
