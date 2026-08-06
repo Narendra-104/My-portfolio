@@ -173,7 +173,36 @@ Why Hire Narendra: ${C.whyHire}
 // ─── Smart keyword-based local responder ──────────────────────
 function generateLocalResponse(query: string, live: LivePortfolioContext): string {
   const q = query.toLowerCase().trim();
-  const has = (...words: string[]) => words.some(w => q.includes(w));
+  // Normalize Hindi/Marathi equivalents to English keywords for consistent handling
+  const normalizationMap: Record<string, string[]> = {
+    // Section keywords
+    "certificate": ["certificate", "certification", "certified", "cert", "प्रमाणपत्र", "प्रमाणपत्रे", "सर्टिफिकेट", "सर्टिफ़िकेट"],
+    "project": ["project", "projects", "proj", "परियोजना", "परियोजनाएँ", "प्रोजेक्ट"],
+    "skill": ["skill", "skills", "technology", "tech", "कौशल्य", "कौशल", "टेक्नॉलॉजी", "स्किल"],
+    "experience": ["experience", "internship", "work", "job", "अनुभव", "इंटर्नशिप", "काम"],
+    "education": ["education", "college", "university", "degree", "शिक्षण", "कॉलेज", "विश्वविद्यालय", "डिग्री"],
+    "contact": ["contact", "reach", "message", "संपर्क", "संपर्क में", "संदेश"],
+    "email": ["email", "mail", "ईमेल", "इमेल"],
+    "github": ["github", "git hub", "repo", "repository", "गिटहब"],
+    "linkedin": ["linkedin", "linked in", "लिंक्डइन"],
+    "hire": ["hire", "hiring", "available", "internship", "recruit", "opportunity", "open to work", "हायर", "भर्ती"],
+    "live data": ["live data", "database", "supabase", "डेटा", "डेटाबेस"],
+    "greeting": ["hi", "hello", "hey", "namaste", "नमस्ते", "नमस्कार", "हैलो", "हॅलो", "हाय", "हॅलो", "नमस्कार", "हे"]
+  };
+  const normalize = (text: string) => {
+    let result = text;
+    for (const [eng, variants] of Object.entries(normalizationMap)) {
+      for (const v of variants) {
+        const regex = new RegExp(`\\b${v}\\b`, "gi");
+        result = result.replace(regex, eng);
+      }
+    }
+    return result;
+  };
+  const normalizedQ = normalize(q);
+  // Use normalized query for further keyword checks
+  const has = (...words: string[]) => words.some(w => normalizedQ.includes(w));
+
   const A = STATIC_DATA.about;
   const E = STATIC_DATA.education;
   const C = STATIC_DATA.contact;
@@ -518,10 +547,22 @@ export default function PortfolioChat() {
     if (!clean) return;
 
     const isDevanagari = /[\u0900-\u097F]/.test(clean);
-    const marathiKws = ['आहे', 'नाही', 'बद्दल', 'करा', 'माझे', 'कुठे', 'सांगा', 'नमस्कार'];
+    // Keyword lists for Marathi and Hindi detection (expanded)
+    const marathiKeywords = ['आहे', 'नाही', 'बद्दल', 'करा', 'माझे', 'कुठे', 'सांगा', 'नमस्कार', 'हॅलो', 'तुम्ही', 'प्रकल्प', 'प्रमाणपत्र', 'शिक्षण', 'कौशल्य', 'अनुभव', 'संपर्क'];
+    const hindiKeywords = ['है', 'हैं', 'नहीं', 'के बारे में', 'करें', 'मेरा', 'कहाँ', 'बताइए', 'नमस्ते', 'हैलो', 'परियोजना', 'प्रमाणपत्र', 'शिक्षा', 'कौशल', 'अनुभव', 'संपर्क'];
     let langCode = 'en';
-    if (isDevanagari) langCode = marathiKws.some(w => clean.includes(w)) ? 'mr' : 'hi';
+    if (isDevanagari) {
+      if (marathiKeywords.some(w => clean.includes(w))) {
+        langCode = 'mr';
+      } else if (hindiKeywords.some(w => clean.includes(w))) {
+        langCode = 'hi';
+      } else {
+        // Default to Hindi if Devanagari but no specific keywords
+        langCode = 'hi';
+      }
+    }
     const targetLang = langCode === 'mr' ? 'mr-IN' : langCode === 'hi' ? 'hi-IN' : 'en-US';
+
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const vs = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
