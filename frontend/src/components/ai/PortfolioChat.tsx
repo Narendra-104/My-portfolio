@@ -499,6 +499,45 @@ export default function PortfolioChat() {
 
     loadAllData();
   }, []);
+          customAbout: customAbout.status === 'fulfilled' ? customAbout.value : null,
+          customSkills: customSkills.status === 'fulfilled' ? customSkills.value : null,
+          customExperience: customExperience.status === 'fulfilled' ? customExperience.value : null,
+          customProfile: customProfile.status === 'fulfilled' ? customProfile.value : null,
+          loaded: true,
+        };
+
+        setLiveData(newData);
+
+        const projectCount = newData.projects.length;
+        const certCount = newData.certificates.length;
+
+        setMessages(prev => [
+          ...prev,
+          {
+            id: 'data-loaded',
+            sender: 'ai',
+            text: `✅ **Live data loaded!**\n• 🚀 ${projectCount} project${projectCount !== 1 ? 's' : ''} from database\n• 🏆 ${certCount} certificate${certCount !== 1 ? 's' : ''} from database\n\n**What would you like to know about Narendra?** Ask me anything! 😊`,
+            timestamp: new Date(),
+          },
+        ]);
+      } catch (err) {
+        setLiveData(prev => ({ ...prev, loaded: true }));
+        setMessages(prev => [
+          ...prev,
+          {
+            id: 'data-fallback',
+            sender: 'ai',
+            text: `ℹ️ Using cached portfolio data. I can still answer all questions about Narendra's skills, projects, experience, and more!\n\nWhat would you like to know? 😊`,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    loadAllData();
+  }, []);
 
   const refreshData = async () => {
     setIsLoadingData(true);
@@ -604,13 +643,63 @@ export default function PortfolioChat() {
     const targetLang = langCode === 'mr' ? 'mr-IN' : langCode === 'hi' ? 'hi-IN' : 'en-US';
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      const vs = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
-      const matched = vs.find(v => v.lang.toLowerCase().startsWith(langCode));
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      window.speechSynthesis.cancel();
+
+      const vs = window.speechSynthesis.getVoices().length > 0
+        ? window.speechSynthesis.getVoices()
+        : voices;
+
+      // Intelligent voice lookup with Devanagari fallbacks
+      let matchedVoice: SpeechSynthesisVoice | undefined;
+
+      if (langCode === 'mr') {
+        // 1. Try exact Marathi voice
+        matchedVoice = vs.find(v => v.lang.toLowerCase().includes('mr'));
+        // 2. If Marathi voice not installed on OS, fallback to Hindi voice (reads Devanagari fluently)
+        if (!matchedVoice) {
+          matchedVoice = vs.find(v => v.lang.toLowerCase().includes('hi'));
+        }
+      } else if (langCode === 'hi') {
+        // 1. Try Hindi voice
+        matchedVoice = vs.find(v => v.lang.toLowerCase().includes('hi'));
+        // 2. Fallback to Marathi voice
+        if (!matchedVoice) {
+          matchedVoice = vs.find(v => v.lang.toLowerCase().includes('mr'));
+        }
+      }
+
+      // 3. Fallback to any Indian voice (e.g. en-IN or Google Indian English)
+      if (!matchedVoice && (langCode === 'mr' || langCode === 'hi')) {
+        matchedVoice = vs.find(v =>
+          v.lang.toLowerCase().includes('in') ||
+          v.name.toLowerCase().includes('india') ||
+          v.name.toLowerCase().includes('hindi') ||
+          v.name.toLowerCase().includes('kalpana')
+        );
+      }
+
+      // 4. Default English fallback
+      if (!matchedVoice && langCode === 'en') {
+        matchedVoice = vs.find(v => v.lang.toLowerCase().startsWith('en'));
+      }
+
       const utterance = new SpeechSynthesisUtterance(clean.substring(0, 350));
-      utterance.lang = matched?.lang || targetLang;
-      if (matched) utterance.voice = matched;
-      utterance.rate = 0.95;
-      window.speechSynthesis.speak(utterance);
+      utterance.lang = matchedVoice ? matchedVoice.lang : targetLang;
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      }
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+
+      setTimeout(() => {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        window.speechSynthesis.speak(utterance);
+      }, 50);
     }
   };
 
