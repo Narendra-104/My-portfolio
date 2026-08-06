@@ -433,7 +433,7 @@ export default function PortfolioChat() {
     {
       id: 'init',
       sender: 'ai',
-      text: `👋 Hi! I'm Narendra's AI Portfolio Assistant.\n\nFetching live portfolio data... 🔄\n\nYou can ask me about his skills, projects, certificates, experience, education, and more — in English, हिंदी, or मराठी!`,
+      text: `👋 Hi! I'm Narendra's AI Portfolio Assistant.\n\nYou can ask me about his skills, projects, certificates, experience, education, and more — in English, हिंदी, or मराठी!`,
       timestamp: new Date(),
     },
   ]);
@@ -467,20 +467,8 @@ export default function PortfolioChat() {
           loaded: true,
         };
 
-        setLiveData(newData);
-
-        const projectCount = newData.projects.length;
-        const certCount = newData.certificates.length;
-
-        setMessages(prev => [
-          ...prev,
-          {
-            id: 'data-loaded',
-            sender: 'ai',
-            text: `✅ **Live data loaded!**\n• 🚀 ${projectCount} project${projectCount !== 1 ? 's' : ''} from database\n• 🏆 ${certCount} certificate${certCount !== 1 ? 's' : ''} from database\n\n**What would you like to know about Narendra?** Ask me anything! 😊`,
-            timestamp: new Date(),
-          },
-        ]);
+       
+    
       } catch (err) {
         setLiveData(prev => ({ ...prev, loaded: true }));
         setMessages(prev => [
