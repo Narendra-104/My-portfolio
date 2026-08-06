@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { portfolioData } from '../../data';
 import { MessageSquare, X, Send, Bot, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { fetchProjects, fetchCertificates, fetchPortfolioSetting } from '../../lib/db';
 
 interface Message {
   id: string;
@@ -158,10 +159,10 @@ export const AIChatAssistant: React.FC = () => {
     }
 
     if (has('contact', 'email', 'reach', 'hire', 'available')) {
-      return "Contact: Email: narendragond012@gmail.com | Status: Available for Internship 2026 | GitHub: Narendra-104 | LinkedIn: narendra-gond-83a050329";
+      return "Contact: Email: narendragond014@gmail.com | Status: Available for Internship 2026 | GitHub: Narendra-104 | LinkedIn: narendra-gond-83a050329";
     }
 
-    return "Hello! I am Narendra Gond's AI Assistant. Ask me about his Bio, Location, Education & CGPA, Skills, Projects (VisionTrack, Skill Exchange, Placement Portal), Experience (Genxcode, EduSkills), or Contact details!";
+    return "Hello! I am Narendra Gond's AI Assistant. Ask me about his Bio, Location, Education & CGPA, Skills, Projects (VisionTrack, Skill Exchange, Placement Portal), Experience (Genxcode, EduSkills), Certificates, or Contact details!";
   };
 
   const handleSend = async (textToSend: string) => {
