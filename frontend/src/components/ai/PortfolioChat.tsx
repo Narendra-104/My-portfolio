@@ -171,24 +171,76 @@ Why Hire Narendra: ${C.whyHire}
 }
 
 // ─── Smart keyword-based local responder ──────────────────────
-function generateLocalResponse(query: string, live: LivePortfolioContext): string {
+// ─── Language Detection Helper ─────────────────────────────────
+function detectQueryLanguage(query: string, currentSelectedLang: string = 'en-US'): 'mr' | 'hi' | 'en' {
   const q = query.toLowerCase().trim();
-  // Normalize Hindi/Marathi equivalents to English keywords for consistent handling
+
+  // Explicit Marathi request keywords
+  if (
+    q.includes('marathi') ||
+    q.includes('मराठी') ||
+    q.includes('marathit') ||
+    q.includes('मराठीत') ||
+    q.includes('marathi madhe') ||
+    q.includes('मराठी मध्ये')
+  ) {
+    if (q.includes('hindi') || q.includes('हिंदी')) return 'hi';
+    return 'mr';
+  }
+
+  // Explicit Hindi request keywords
+  if (
+    q.includes('hindi') ||
+    q.includes('हिंदी') ||
+    q.includes('hindit') ||
+    q.includes('हिंदी में') ||
+    q.includes('hindi me')
+  ) {
+    if (q.includes('marathi') || q.includes('मराठी')) return 'mr';
+    return 'hi';
+  }
+
+  // Devanagari script vocabulary analysis
+  if (/[\u0900-\u097F]/.test(query)) {
+    const marathiWords = ['आहे', 'नाही', 'बद्दल', 'करा', 'माझे', 'कुठे', 'सांगा', 'नमस्कार', 'तुम्ही', 'प्रकल्प', 'प्रमाणपत्र', 'शिक्षण', 'कौशल्य', 'अनुभव', 'संपर्क', 'बोला', 'सांग', 'मराठी', 'हॅलो', 'काय', 'माहिती'];
+    const hindiWords = ['है', 'हैं', 'नहीं', 'के बारे में', 'करें', 'मेरा', 'कहाँ', 'बताइए', 'नमस्ते', 'परियोजना', 'प्रमाणपत्र', 'शिक्षा', 'कौशल', 'अनुभव', 'संपर्क', 'बताओ', 'बोलो', 'हिंदी', 'क्या', 'जानकारी'];
+
+    const hasMr = marathiWords.some(w => q.includes(w));
+    const hasHi = hindiWords.some(w => q.includes(w));
+    if (hasMr && !hasHi) return 'mr';
+    if (hasHi && !hasMr) return 'hi';
+    if (currentSelectedLang.startsWith('mr')) return 'mr';
+    if (currentSelectedLang.startsWith('hi')) return 'hi';
+    return 'mr';
+  }
+
+  if (currentSelectedLang === 'mr-IN') return 'mr';
+  if (currentSelectedLang === 'hi-IN') return 'hi';
+
+  return 'en';
+}
+
+// ─── Smart keyword-based local responder ──────────────────────
+function generateLocalResponse(query: string, live: LivePortfolioContext, selectedLang: string = 'en-US'): string {
+  const q = query.toLowerCase().trim();
+  const lang = detectQueryLanguage(query, selectedLang);
+
+  // Normalize Hindi/Marathi equivalents to English keywords for consistent topic handling
   const normalizationMap: Record<string, string[]> = {
-    // Section keywords
     "certificate": ["certificate", "certification", "certified", "cert", "प्रमाणपत्र", "प्रमाणपत्रे", "सर्टिफिकेट", "सर्टिफ़िकेट"],
-    "project": ["project", "projects", "proj", "परियोजना", "परियोजनाएँ", "प्रोजेक्ट"],
+    "project": ["project", "projects", "proj", "परियोजना", "परियोजनाएँ", "प्रोजेक्ट", "प्रकल्प"],
     "skill": ["skill", "skills", "technology", "tech", "कौशल्य", "कौशल", "टेक्नॉलॉजी", "स्किल"],
     "experience": ["experience", "internship", "work", "job", "अनुभव", "इंटर्नशिप", "काम"],
-    "education": ["education", "college", "university", "degree", "शिक्षण", "कॉलेज", "विश्वविद्यालय", "डिग्री"],
+    "education": ["education", "college", "university", "degree", "शिक्षण", "कॉलेज", "विश्वविद्यालय", "डिग्री", "शिक्षा"],
     "contact": ["contact", "reach", "message", "संपर्क", "संपर्क में", "संदेश"],
     "email": ["email", "mail", "ईमेल", "इमेल"],
     "github": ["github", "git hub", "repo", "repository", "गिटहब"],
     "linkedin": ["linkedin", "linked in", "लिंक्डइन"],
     "hire": ["hire", "hiring", "available", "internship", "recruit", "opportunity", "open to work", "हायर", "भर्ती"],
     "live data": ["live data", "database", "supabase", "डेटा", "डेटाबेस"],
-    "greeting": ["hi", "hello", "hey", "namaste", "नमस्ते", "नमस्कार", "हैलो", "हॅलो", "हाय", "हॅलो", "नमस्कार", "हे"]
+    "greeting": ["hi", "hello", "hey", "namaste", "नमस्ते", "नमस्कार", "हैलो", "हॅलो", "हाय", "हे"]
   };
+
   const normalize = (text: string) => {
     let result = text;
     for (const [eng, variants] of Object.entries(normalizationMap)) {
@@ -200,8 +252,7 @@ function generateLocalResponse(query: string, live: LivePortfolioContext): strin
     return result;
   };
   const normalizedQ = normalize(q);
-  // Use normalized query for further keyword checks
-  const has = (...words: string[]) => words.some(w => normalizedQ.includes(w));
+  const has = (...words: string[]) => words.some(w => normalizedQ.includes(w) || q.includes(w));
 
   const A = STATIC_DATA.about;
   const E = STATIC_DATA.education;
@@ -210,77 +261,91 @@ function generateLocalResponse(query: string, live: LivePortfolioContext): strin
   const EX = live.customExperience?.length ? live.customExperience : STATIC_DATA.experience;
 
   // ── GREETING ──
-  if (has('hi', 'hello', 'hey', 'namaste', 'नमस्ते', 'नमस्कार', 'हे')) {
+  if (has('greeting', 'hi', 'hello', 'hey', 'namaste', 'नमस्ते', 'नमस्कार', 'हे', 'हॅलो', 'हैलो')) {
+    if (lang === 'mr') {
+      return `👋 नमस्कार! मी नरेंद्रचा AI पोर्टफोलिओ सहाय्यक आहे.\n\nमाझ्याकडे त्याच्या पोर्टफोलिओचा थेट डेटा आहे — तुम्ही मला विचारू शकता:\n• 👨‍💻 परिचय आणि पार्श्वभूमी (About)\n• 🎓 शिक्षण आणि CGPA (Education)\n• 🛠️ कौशल्ये आणि तंत्रज्ञान (Skills)\n• 🚀 प्रकल्प (${live.projects.length} लाइव्ह DB मधून)\n• 🏆 प्रमाणपत्रे (${live.certificates.length} लाइव्ह DB मधून)\n• 💼 अनुभव आणि इंटर्नशिप (Experience)\n• 📧 संपर्क आणि उपलब्धता (Contact)\n\nतुम्हाला नरेंद्रबद्दल काय जाणून घ्यायचे आहे?`;
+    }
+    if (lang === 'hi') {
+      return `👋 नमस्ते! मैं नरेंद्र का AI पोर्टफोलियो सहायक हूँ।\n\nमेरे पास उनके पोर्टफोलियो का लाइव डेटा है — आप मुझसे पूछ सकते हैं:\n• 👨‍💻 परिचय और पृष्ठभूमि (About)\n• 🎓 शिक्षा और CGPA (Education)\n• 🛠️ कौशल और तकनीक (Skills)\n• 🚀 प्रोजेक्ट्स (${live.projects.length} लाइव DB से)\n• 🏆 प्रमाण पत्र (${live.certificates.length} लाइव DB से)\n• 💼 अनुभव और इंटर्नशिप (Experience)\n• 📧 संपर्क और उपलब्धता (Contact)\n\nआप नरेंद्र के बारे में क्या जानना चाहते हैं?`;
+    }
     return `👋 Hello! I'm Narendra's AI Portfolio Assistant.\n\nI have live data from his portfolio — you can ask me about:\n• 👨‍💻 About & Background\n• 🎓 Education & CGPA\n• 🛠️ Skills & Technologies\n• 🚀 Projects (${live.projects.length} live from DB)\n• 🏆 Certificates (${live.certificates.length} live from DB)\n• 💼 Experience & Internships\n• 📧 Contact & Availability\n\nWhat would you like to know about Narendra?`;
   }
 
   // ── ABOUT ──
-  if (has('who is', 'about narendra', 'tell me about', 'introduce', 'background', 'summary', 'bio', 'narendra gond', 'कोण आहे', 'नरेंद्र बद्दल')) {
+  if (has('who is', 'about narendra', 'tell me about', 'introduce', 'background', 'summary', 'bio', 'narendra gond', 'कोण आहे', 'नरेंद्र बद्दल', 'बारे में')) {
+    if (lang === 'mr') {
+      return `👨‍💻 **नरेंद्र गोंड** — ${A.role}\n\n${A.summary}\n\n📍 स्थान: **${A.location}**\n🎯 करिअरचे ध्येय: ${A.careerObjective}`;
+    }
+    if (lang === 'hi') {
+      return `👨‍💻 **नरेंद्र गोंड** — ${A.role}\n\n${A.summary}\n\n📍 स्थान: **${A.location}**\n🎯 करियर का लक्ष्य: ${A.careerObjective}`;
+    }
     return `👨‍💻 **Narendra Gond** — ${A.role}\n\n${A.summary}\n\n📍 ${A.location}\n🎯 Career Goal: ${A.careerObjective}`;
   }
+
   if (has('location', 'where', 'city', 'address', 'pune', 'कुठे', 'कहाँ')) {
+    if (lang === 'mr') {
+      return `📍 नरेंद्र **${A.location}** मध्ये राहतो. तो नवीन संधींसाठी उत्सुक असून रिमोट आणि हायब्रिड रोलसाठी उपलब्ध आहे.`;
+    }
+    if (lang === 'hi') {
+      return `📍 नरेंद्र **${A.location}** में स्थित हैं। वे नए अवसरों की तलाश में हैं और रिमोट/हाइब्रिड भूमिकाओं के लिए उपलब्ध हैं।`;
+    }
     return `📍 Narendra is based in **${A.location}**. He is actively looking for opportunities and is open to remote/hybrid roles as well.`;
   }
-  if (has('philosophy', 'coding style', 'approach', 'how code')) {
-    return `💡 **Development Philosophy:**\n${A.developmentPhilosophy}`;
-  }
+
   if (has('career goal', 'objective', 'aim', 'target', 'focus area', 'लक्ष्य', 'ध्येय')) {
+    if (lang === 'mr') {
+      return `🎯 **करिअरचे ध्येय:**\n${A.careerObjective}\n\n🔭 **लक्ष्य क्षेत्र:** ${A.focusArea}`;
+    }
+    if (lang === 'hi') {
+      return `🎯 **करियर का लक्ष्य:**\n${A.careerObjective}\n\n🔭 **मुख्य फोकस:** ${A.focusArea}`;
+    }
     return `🎯 **Career Objective:**\n${A.careerObjective}\n\n🔭 **Focus Areas:** ${A.focusArea}`;
   }
 
   // ── EDUCATION ──
-  if (has('education', 'college', 'university', 'degree', 'jspm', 'branch', 'engineering', 'शिक्षण', 'कॉलेज')) {
+  if (has('education', 'college', 'university', 'degree', 'jspm', 'branch', 'engineering', 'शिक्षण', 'कॉलेज', 'शिक्षा')) {
+    if (lang === 'mr') {
+      return `🎓 **शिक्षण (Education):**\n• पदवी: **${E.degree}**\n📍 विद्यापीठ: ${E.university}, ${E.campus}\n📅 कालावधी: ${E.period}\n📚 मुख्य विषय: ${E.subjects}`;
+    }
+    if (lang === 'hi') {
+      return `🎓 **शिक्षा (Education):**\n• डिग्री: **${E.degree}**\n📍 विश्वविद्यालय: ${E.university}, ${E.campus}\n📅 अवधि: ${E.period}\n📚 मुख्य विषय: ${E.subjects}`;
+    }
     return `🎓 **Education:**\n${E.degree}\n📍 ${E.university}, ${E.campus}\n📅 ${E.period}\n📚 Subjects: ${E.subjects}`;
   }
+
   if (has('cgpa', 'marks', 'grade', 'score', 'percentage', 'first year', '1st year', 'second year', '2nd year', 'गुण', 'अंक')) {
+    if (lang === 'mr') {
+      return `📊 **शैक्षणिक कामगिरी (CGPA):**\n• सरासरी CGPA: **${E.cgpa} / 10**\n• प्रथम वर्ष: ${E.cgpaFirstYear}\n• द्वितीय वर्ष: ${E.cgpaSecondYear}`;
+    }
+    if (lang === 'hi') {
+      return `📊 **शैक्षणिक प्रदर्शन (CGPA):**\n• औसत CGPA: **${E.cgpa} / 10**\n• प्रथम वर्ष: ${E.cgpaFirstYear}\n• द्वितीय वर्ष: ${E.cgpaSecondYear}`;
+    }
     return `📊 **Academic Performance:**\n• Average CGPA: **${E.cgpa}**\n• 1st Year: ${E.cgpaFirstYear}\n• 2nd Year: ${E.cgpaSecondYear}`;
-  }
-  if (has('subject', 'course', 'curriculum', 'विषय')) {
-    return `📚 **Academic Subjects:**\n${E.subjects}`;
-  }
-  if (has('how start', 'begin', 'first program', 'सुरुवात', 'शुरुआत')) {
-    return `🌱 Narendra started his programming journey with **C Language** in his 1st year of B-Tech. His interest grew into DSA → Python → Full-Stack Web Development → AI/ML & Cloud.`;
   }
 
   // ── SKILLS ──
-  if (has('python')) {
-    return `🐍 **Python** is Narendra's primary language!\n• OOP & functional programming\n• ML models with Scikit-Learn\n• NLP pipelines with NLTK & SpaCy\n• AWS cloud automation with Boto3\n• Used in AI portfolio, VisionTrack & EduSkills internships`;
-  }
-  if (has('dsa', 'data structure', 'algorithm', 'big-o', 'tree', 'graph', 'linked list')) {
-    return `🧮 **DSA & Algorithms** is Narendra's core specialisation:\nLists, Stacks, Queues, Trees, Graphs, Big-O Analysis.\nHe applies DSA in competitive problem solving and system design at Genxcode.`;
-  }
-  if (has('c language', 'core c', 'c lang', 'सी भाषा')) {
-    return `⚙️ **Core C Language** is Narendra's foundation language.\nHe led C code reviews at Genxcode and uses it for systems-level problem solving and algorithm implementation.`;
-  }
-  if (has('react', 'frontend', 'ui', 'html', 'css', 'typescript', 'javascript')) {
-    return `🎨 **Frontend Skills:**\n${SK.frontend.join(', ')}\n\nHe uses React + Vite + TypeScript for all his web applications including this portfolio and VisionTrack.`;
-  }
-  if (has('node', 'backend', 'express', 'server', 'api')) {
-    return `⚙️ **Backend Skills:**\n${SK.backend.join(', ')}\nDatabases: ${SK.databases.join(', ')}`;
-  }
-  if (has('aws', 'cloud', 's3', 'ec2', 'boto3')) {
-    return `☁️ **AWS Cloud Experience:**\n• Amazon S3 buckets & EC2 virtual machines\n• Boto3 Python SDK automation scripts\n• Completed AIML & AWS Cloud Internship at EduSkills (June 2025)`;
-  }
-  if (has('ai', 'ml', 'machine learning', 'gemini', 'openai', 'nlp', 'rag', 'generative')) {
-    return `🤖 **AI/ML Skills:**\n${SK.ai.join(', ')}\n\nHe completed a GenAI, ML & NLP internship at EduSkills (June 2026), building NLP pipelines with NLTK & SpaCy and RAG workflows.`;
-  }
-  if (has('computer vision', 'face recognition', 'opencv')) {
-    return `👁️ **Computer Vision:** Narendra built the VisionTrack AI Attendance System using face recognition technology that auto-detects student faces via camera and logs attendance into Firebase cloud storage.`;
-  }
-  if (has('full stack', 'fullstack', 'full-stack')) {
-    return `💻 **Full-Stack Development:**\n• Frontend: ${SK.frontend.join(', ')}\n• Backend: ${SK.backend.join(', ')}\n• Databases: ${SK.databases.join(', ')}\n• Cloud: ${SK.cloud.join(', ')}`;
-  }
-  if (has('skill', 'technology', 'tech stack', 'what can', 'कौशल्य', 'स्किल', 'tools')) {
+  if (has('skill', 'technology', 'tech stack', 'what can', 'कौशल्य', 'कौशल', 'स्किल', 'tools', 'python', 'react', 'dsa', 'aws', 'ai', 'c language')) {
+    if (lang === 'mr') {
+      return `🛠️ **नरेंद्रची संपूर्ण तांत्रिक कौशल्ये (Tech Stack):**\n\n• **मुख्य (Core):** ${SK.core.join(', ')}\n• **फ्रंटएंड (Frontend):** ${SK.frontend.join(', ')}\n• **बॅकएंड (Backend):** ${SK.backend.join(', ')}\n• **डेटाबेस (Databases):** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **क्लाउड (Cloud):** ${SK.cloud.join(', ')}`;
+    }
+    if (lang === 'hi') {
+      return `🛠️ **नरेंद्र का पूरा तकनीकी कौशल (Tech Stack):**\n\n• **मुख्य (Core):** ${SK.core.join(', ')}\n• **फ्रंटएंड (Frontend):** ${SK.frontend.join(', ')}\n• **बैकएंड (Backend):** ${SK.backend.join(', ')}\n• **डेटाबेस (Databases):** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **क्लाउड (Cloud):** ${SK.cloud.join(', ')}`;
+    }
     return `🛠️ **Narendra's Full Tech Stack:**\n\n• **Core:** ${SK.core.join(', ')}\n• **Frontend:** ${SK.frontend.join(', ')}\n• **Backend:** ${SK.backend.join(', ')}\n• **Databases:** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **Cloud:** ${SK.cloud.join(', ')}`;
   }
 
-  // ── PROJECTS (LIVE DATA) ──
-  if (has('project', 'projets', 'what build', 'what made', 'प्रोजेक्ट', 'बनाए')) {
-    if (live.projects.length === 0) {
-      return `🚀 Narendra has built several impressive projects!\n\n1. **VisionTrack** — AI Face Recognition Attendance System\n2. **Local Skill Exchange Platform** — P2P Credit & Escrow learning\n3. **Placement Portal System** — Enterprise recruitment with resume scraping\n4. **Interactive AI Portfolio** — This website (React + Gemini AI)\n\n(Live DB sync in progress — ask me about any specific project!)`;
+  // ── PROJECTS ──
+  if (has('project', 'projets', 'what build', 'what made', 'प्रोजेक्ट', 'प्रकल्प', 'बनाए')) {
+    if (live.projects.length > 0) {
+      const list = live.projects.map((p, i) => `${i + 1}. **${p.title}** [${p.category}]\n   ${p.description}${p.link ? `\n   🔗 Live: ${p.link}` : ''}`).join('\n\n');
+      if (lang === 'mr') {
+        return `🚀 **नरेंद्रचे प्रकल्प** (${live.projects.length} डेटाबेस मधून लाइव्ह):\n\n${list}\n\nकोणत्याही प्रकल्पाबद्दल अधिक सविस्तर माहितीसाठी विचारू शकता!`;
+      }
+      if (lang === 'hi') {
+        return `🚀 **नरेंद्र के प्रोजेक्ट्स** (${live.projects.length} डेटाबेस से लाइव):\n\n${list}\n\nकिसी भी प्रोजेक्ट के बारे में विस्तार से जानने के लिए पूछें!`;
+      }
+      return `🚀 **Narendra's Projects** (${live.projects.length} from live database):\n\n${list}\n\nAsk me about any project for more details!`;
     }
-    const list = live.projects.map((p, i) => `${i + 1}. **${p.title}** [${p.category}]\n   ${p.description}${p.link ? `\n   🔗 Live: ${p.link}` : ''}`).join('\n\n');
-    return `🚀 **Narendra's Projects** (${live.projects.length} from live database):\n\n${list}\n\nAsk me about any project for more details!`;
   }
 
   // Dynamic project search from live DB
@@ -293,82 +358,53 @@ function generateLocalResponse(query: string, live: LivePortfolioContext): strin
     }
   }
 
-  // Specific static project fallbacks
-  if (has('visiontrack', 'vision track', 'face recog', 'attendance')) {
-    return `👁️ **VisionTrack — AI Attendance & Face Recognition System**\n\nAn AI-powered attendance management web app that uses Computer Vision to automate attendance in real time.\n\n🔬 How it works: The camera feed detects student faces → recognises profiles → logs attendance with timestamps into Firebase cloud storage.\n\n⚙️ Tech: React, Vite, JavaScript, Firebase, AI, Computer Vision, Netlify\n🔗 Live: https://6a2c25951868ad16ea8ba5fe--visontrack.netlify.app/\n📊 Status: ~60% complete — in progress`;
-  }
-  if (has('skill exchange', 'escrow', 'credit based', 'p2p', 'peer')) {
-    return `🔄 **Local Skill Exchange Platform**\n\nA peer-to-peer learning platform where users teach & learn skills using a credit-based economy with secure credit escrow.\n\n💡 AI Matching: Analyses user profiles, listed skills, and availability to pair compatible skill-exchange partners.\n\n⚙️ Tech: React, Node.js, Supabase, AI Matching Engine`;
-  }
-  if (has('placement portal', 'resume scrap', 'recruitment')) {
-    return `🏢 **Placement Portal System**\n\nAn enterprise recruitment pipeline managing student applicants, job listings, automated resume scraping, and cloud infrastructure cost estimation.\n\n⚙️ Tech: React, Scraper API, Supabase, Cloud Infrastructure`;
-  }
-  if (has('this portfolio', 'this website', 'ai portfolio', 'how built', 'how is this site')) {
-    return `💼 **Interactive AI Portfolio Website** — This website!\n\nFull-stack interactive application with:\n• Embedded Gemini AI assistant (me!)\n• Real-time Supabase database sync\n• Owner edit mode with password protection\n• Dark mode + Framer Motion animations\n• Multilingual AI support (English, Hindi, Marathi)\n\n⚙️ Tech: React + Vite + TypeScript + Tailwind CSS + Node.js + Google Gemini API + Supabase`;
-  }
-
-  // ── CERTIFICATES (LIVE DATA) ──
+  // ── CERTIFICATES ──
   if (has('certificate', 'certification', 'certified', 'cert', 'award', 'सर्टिफिकेट', 'प्रमाणपत्र')) {
-    if (live.certificates.length === 0) {
-      return `🏆 Narendra has earned professional certifications in AI/ML, AWS Cloud, and Web Development.\n\n(Live certificate data is loading from database — check the Certificates section on the portfolio for the full list with verification links!)`;
-    }
-    const list = live.certificates.map((c, i) =>
-      `${i + 1}. **${c.title}**\n   📋 Issued by: ${c.issuer} | 📅 ${c.date}${c.certId ? `\n   🔑 Cert ID: ${c.certId}` : ''}${c.verifyUrl ? `\n   ✅ Verify: ${c.verifyUrl}` : ''}`
-    ).join('\n\n');
-    return `🏆 **Narendra's Certificates** (${live.certificates.length} from live database):\n\n${list}`;
-  }
+    if (live.certificates.length > 0) {
+      const certList = live.certificates.map((c, i) =>
+        `${i + 1}. **${c.title}**\n   📋 Issued by: ${c.issuer} | 📅 ${c.date}${c.certId ? `\n   🔑 Cert ID: ${c.certId}` : ''}${c.verifyUrl ? `\n   ✅ Verify: ${c.verifyUrl}` : ''}`
+      ).join('\n\n');
 
-  // Dynamic certificate search from live DB
-  for (const cert of live.certificates) {
-    const titleWords = cert.title.toLowerCase().split(/\s+/);
-    if (titleWords.some(w => w.length > 3 && q.includes(w)) || q.includes(cert.issuer.toLowerCase())) {
-      return `🏆 **${cert.title}**\n📋 Issued by: **${cert.issuer}**\n📅 Date: ${cert.date}${cert.certId ? `\n🔑 Certificate ID: ${cert.certId}` : ''}${cert.verifyUrl ? `\n✅ Verify: ${cert.verifyUrl}` : ''}`;
+      if (lang === 'mr') {
+        return `🏆 **नरेंद्रची प्रमाणपत्रे** (${live.certificates.length} डेटाबेस मधून लाइव्ह):\n\n${certList}`;
+      }
+      if (lang === 'hi') {
+        return `🏆 **नरेंद्र के प्रमाण पत्र** (${live.certificates.length} डेटाबेस से लाइव):\n\n${certList}`;
+      }
+      return `🏆 **Narendra's Certificates** (${live.certificates.length} from live database):\n\n${certList}`;
     }
   }
 
   // ── EXPERIENCE ──
-  if (has('genxcode', 'project director', 'team lead')) {
-    const ex = EX[0] as any;
-    return `💼 **${ex.role} @ ${ex.company}** (${ex.period})\n\n${ex.responsibilities || ex.description}\n\n🛠️ Skills used: ${(ex.skills || []).join(', ')}`;
-  }
-  if (has('eduskills', 'edu skill', 'nlp intern', 'genai intern', 'rag')) {
-    const ex2 = EX[2] as any;
-    return `🧠 **${ex2.role} @ ${ex2.company}** (${ex2.period})\n\n${ex2.responsibilities || ex2.description}\n\n🛠️ Skills: ${(ex2.skills || []).join(', ')}`;
-  }
-  if (has('aws intern', 'cloud intern', 'eduskills aws', 'scikit')) {
-    const ex1 = EX[1] as any;
-    return `☁️ **${ex1.role} @ ${ex1.company}** (${ex1.period})\n\n${ex1.responsibilities || ex1.description}\n\n🛠️ Skills: ${(ex1.skills || []).join(', ')}`;
-  }
   if (has('experience', 'internship', 'work', 'job', 'company', 'अनुभव', 'इंटर्नशिप', 'काम')) {
-    const lines = (EX as any[]).map((ex: any, i: number) =>
-      `${i + 1}. **${ex.role}** @ ${ex.company} (${ex.period})`
-    ).join('\n');
+    if (lang === 'mr') {
+      return `💼 **नरेंद्रचा अनुभव (Experience):**\n\n1. **प्रकल्प संचालक (Project Director)** @ Genxcode (Jan 2026 — Apr 2026)\n2. **GenAI, ML आणि NLP इंटर्न** @ EduSkills (June 2026)\n3. **AIML आणि AWS क्लाउड इंटर्न** @ EduSkills (June 2025)`;
+    }
+    if (lang === 'hi') {
+      return `💼 **नरेंद्र का अनुभव (Experience):**\n\n1. **प्रोजेक्ट डायरेक्टर** @ Genxcode (Jan 2026 — Apr 2026)\n2. **GenAI, ML और NLP इंटर्न** @ EduSkills (June 2026)\n3. **AIML और AWS क्लाउड इंटर्न** @ EduSkills (June 2025)`;
+    }
+    const lines = (EX as any[]).map((ex: any, i: number) => `${i + 1}. **${ex.role}** @ ${ex.company} (${ex.period})`).join('\n');
     return `💼 **Narendra's Experience:**\n\n${lines}\n\nAsk me about any specific role for full details!`;
   }
 
   // ── CONTACT ──
-  if (has('email', 'mail', 'ईमेल', 'इमेल')) {
-    return `📧 Narendra's official email: **${C.email}**\n\nYou can also use the Contact Form on this portfolio to send him a direct message!`;
-  }
-  if (has('github', 'git hub', 'repository', 'repo', 'code')) {
-    return `💻 GitHub: **${C.github}**\nUsername: @${C.githubUsername}\n\nClick the GitHub link in the Contact section to visit his profile!`;
-  }
-  if (has('linkedin', 'linked in')) {
-    return `🔗 LinkedIn: **${C.linkedin}**\nProfile ID: ${C.linkedinId}\n\nClick the LinkedIn link in the Contact section to connect!`;
-  }
-  if (has('contact', 'reach', 'message', 'संपर्क', 'connect')) {
+  if (has('contact', 'reach', 'message', 'संपर्क', 'connect', 'email', 'mail', 'ईमेल')) {
+    if (lang === 'mr') {
+      return `📬 **नरेंद्रशी संपर्क साधा:**\n\n📧 ईमेल: **${C.email}**\n💻 GitHub: **${C.github}** (@${C.githubUsername})\n🔗 LinkedIn: **${C.linkedin}**\n📍 स्थान: ${C.location}\n\nपोर्टफोलिओवरील संपर्क फॉर्म (Contact Form) वापरून थेट संदेश पाठवा!`;
+    }
+    if (lang === 'hi') {
+      return `📬 **नरेंद्र से संपर्क करें:**\n\n📧 ईमेल: **${C.email}**\n💻 GitHub: **${C.github}** (@${C.githubUsername})\n🔗 LinkedIn: **${C.linkedin}**\n📍 स्थान: ${C.location}\n\nपोर्टफोलियो के संपर्क फॉर्म (Contact Form) का उपयोग करके सीधे संदेश भेजें!`;
+    }
     return `📬 **Contact Narendra:**\n\n📧 Email: ${C.email}\n💻 GitHub: ${C.github}\n🔗 LinkedIn: ${C.linkedin}\n📍 Location: ${C.location}\n\nOr use the **Contact Form** directly on this portfolio!`;
-  }
-  if (has('hire', 'hiring', 'available', 'internship 2026', 'recruit', 'opportunity', 'open to work')) {
-    return `✅ **Hiring Status:**\n${C.availability}\n\n🌟 **Why hire Narendra?**\n${C.whyHire}`;
-  }
-
-  // ── DATA STATUS ──
-  if (has('live data', 'database', 'supabase', 'how many project', 'how many cert', 'sync')) {
-    return `📊 **Live Portfolio Data Status:**\n• 🚀 Projects loaded: **${live.projects.length}** (from Supabase)\n• 🏆 Certificates loaded: **${live.certificates.length}** (from Supabase)\n• 🔄 Data syncs in real-time across all devices\n\n${live.loaded ? '✅ Database connection active' : '⚠️ Using cached data'}`;
   }
 
   // ── DEFAULT FRIENDLY FALLBACK ──
+  if (lang === 'mr') {
+    return `😊 मला पूर्णपणे समजले नाही — पण मी मदतीसाठी तयार आहे!\n\n**तुम्हाला नरेंद्र गोंडबद्दल काय जाणून घ्यायचे आहे?**\n\n• 👨‍💻 **परिचय** — पार्श्वभूमी आणि करिअर ध्येय\n• 🎓 **शिक्षण** — JSPM युनिव्हर्सिटी आणि CGPA\n• 🛠️ **कौशल्ये** — Python, DSA, React, AI/ML, AWS\n• 🚀 **प्रकल्प** — ${live.projects.length > 0 ? `${live.projects.length} लाइव्ह प्रोजेक्ट्स` : 'VisionTrack, Skill Exchange'}\n• 🏆 **प्रमाणपत्रे** — AI/ML आणि AWS क्लाउड\n• 💼 **अनुभव** — Genxcode आणि EduSkills इंटर्नशिप\n• 📧 **संपर्क** — ईमेल आणि सोशल मीडिया\n\nतुम्ही मराठी, हिंदी किंवा इंग्रजीत सहजपणे विचारू शकता! 😊`;
+  }
+  if (lang === 'hi') {
+    return `😊 मैं पूरी तरह से समझ नहीं पाया — लेकिन मैं मदद के लिए तैयार हूँ!\n\n**आप नरेंद्र गोंड के बारे में क्या जानना चाहते हैं?**\n\n• 👨‍💻 **परिचय** — पृष्ठभूमि और करियर लक्ष्य\n• 🎓 **शिक्षा** — JSPM यूनिवर्सिटी और CGPA\n• 🛠️ **कौशल** — Python, DSA, React, AI/ML, AWS\n• 🚀 **प्रोजेक्ट्स** — ${live.projects.length > 0 ? `${live.projects.length} लाइव प्रोजेक्ट्स` : 'VisionTrack, Skill Exchange'}\n• 🏆 **प्रमाण पत्र** — AI/ML और AWS क्लाउड\n• 💼 **अनुभव** — Genxcode और EduSkills इंटर्नशिप\n• 📧 **संपर्क** — ईमेल और सोशल मीडिया\n\nआप हिंदी, मराठी या अंग्रेजी में आसानी से पूछ सकते हैं! 😊`;
+  }
   return `🤔 I didn't quite catch that — but I'm here to help!\n\n**What would you like to know about Narendra Gond?**\n\n• 👨‍💻 **About** — background, bio, philosophy\n• 🎓 **Education** — JSPM University, CGPA, subjects\n• 🛠️ **Skills** — Python, DSA, React, AI/ML, AWS\n• 🚀 **Projects** — ${live.projects.length > 0 ? `${live.projects.length} live projects: ${live.projects.slice(0, 2).map(p => p.title).join(', ')}...` : 'VisionTrack, Skill Exchange, Placement Portal...'}\n• 🏆 **Certificates** — ${live.certificates.length > 0 ? `${live.certificates.length} certifications` : 'professional certifications'}\n• 💼 **Experience** — Genxcode, EduSkills internships\n• 📧 **Contact** — email, GitHub, LinkedIn, availability\n\nJust ask naturally — I understand English, हिंदी, and मराठी! 😊`;
 }
 
@@ -540,34 +576,37 @@ export default function PortfolioChat() {
     setMessages(prev => [...prev, { id: Math.random().toString(), sender: 'ai', text, timestamp: new Date() }]);
   };
 
-  const speakResponse = (text: string) => {
+  const speakResponse = (text: string, activeLangCode?: string) => {
     if (isMuted) return;
     stopSpeaking();
     const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[*_#`•📌💻💼🎓👋📫🚀🏆☁️🧮👁️🔄✅ℹ️⚠️🤔😊🐍🎨⚙️💡🎯🌱📊📬📧🔗🏢]/g, '').trim();
     if (!clean) return;
 
     const isDevanagari = /[\u0900-\u097F]/.test(clean);
-    // Keyword lists for Marathi and Hindi detection (expanded)
-    const marathiKeywords = ['आहे', 'नाही', 'बद्दल', 'करा', 'माझे', 'कुठे', 'सांगा', 'नमस्कार', 'हॅलो', 'तुम्ही', 'प्रकल्प', 'प्रमाणपत्र', 'शिक्षण', 'कौशल्य', 'अनुभव', 'संपर्क'];
-    const hindiKeywords = ['है', 'हैं', 'नहीं', 'के बारे में', 'करें', 'मेरा', 'कहाँ', 'बताइए', 'नमस्ते', 'हैलो', 'परियोजना', 'प्रमाणपत्र', 'शिक्षा', 'कौशल', 'अनुभव', 'संपर्क'];
+    const marathiKeywords = ['आहे', 'नाही', 'बद्दल', 'करा', 'माझे', 'कुठे', 'सांगा', 'नमस्कार', 'हॅलो', 'तुम्ही', 'प्रकल्प', 'प्रमाणपत्र', 'शिक्षण', 'कौशल्य', 'अनुभव', 'संपर्क', 'माहिती'];
+    const hindiKeywords = ['है', 'हैं', 'नहीं', 'के बारे में', 'करें', 'मेरा', 'कहाँ', 'बताइए', 'नमस्ते', 'हैलो', 'परियोजना', 'प्रमाणपत्र', 'शिक्षा', 'कौशल', 'अनुभव', 'संपर्क', 'जानकारी'];
+
     let langCode = 'en';
     if (isDevanagari) {
-      if (marathiKeywords.some(w => clean.includes(w))) {
+      if (marathiKeywords.some(w => clean.includes(w)) || activeLangCode === 'mr-IN' || selectedLang === 'mr-IN') {
         langCode = 'mr';
-      } else if (hindiKeywords.some(w => clean.includes(w))) {
+      } else if (hindiKeywords.some(w => clean.includes(w)) || activeLangCode === 'hi-IN' || selectedLang === 'hi-IN') {
         langCode = 'hi';
       } else {
-        // Default to Hindi if Devanagari but no specific keywords
-        langCode = 'hi';
+        langCode = (activeLangCode || selectedLang).startsWith('mr') ? 'mr' : 'hi';
       }
+    } else if ((activeLangCode || selectedLang) === 'mr-IN') {
+      langCode = 'mr';
+    } else if ((activeLangCode || selectedLang) === 'hi-IN') {
+      langCode = 'hi';
     }
-    const targetLang = langCode === 'mr' ? 'mr-IN' : langCode === 'hi' ? 'hi-IN' : 'en-US';
 
+    const targetLang = langCode === 'mr' ? 'mr-IN' : langCode === 'hi' ? 'hi-IN' : 'en-US';
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const vs = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
       const matched = vs.find(v => v.lang.toLowerCase().startsWith(langCode));
-      const utterance = new SpeechSynthesisUtterance(clean.substring(0, 300));
+      const utterance = new SpeechSynthesisUtterance(clean.substring(0, 350));
       utterance.lang = matched?.lang || targetLang;
       if (matched) utterance.voice = matched;
       utterance.rate = 0.95;
@@ -605,12 +644,29 @@ export default function PortfolioChat() {
     setInput('');
     setMicError(null);
 
-    // Build context with live data for backend prompt
-    const context = buildContext(liveData);
+    // Auto-detect query language and sync selected language state
+    const detectedLang = detectQueryLanguage(textToSend, selectedLang);
+    let activeLang = selectedLang;
+    if (detectedLang === 'mr' && selectedLang !== 'mr-IN') {
+      activeLang = 'mr-IN';
+      setSelectedLang('mr-IN');
+    } else if (detectedLang === 'hi' && selectedLang !== 'hi-IN') {
+      activeLang = 'hi-IN';
+      setSelectedLang('hi-IN');
+    }
+
+    // Build context with live data for backend prompt with explicit language instruction
+    let context = buildContext(liveData);
+    if (detectedLang === 'mr' || activeLang === 'mr-IN') {
+      context += '\n\n[CRITICAL SYSTEM INSTRUCTION: The user is speaking/asking in MARATHI. You MUST reply completely in MARATHI language using Devanagari script.]';
+    } else if (detectedLang === 'hi' || activeLang === 'hi-IN') {
+      context += '\n\n[CRITICAL SYSTEM INSTRUCTION: The user is speaking/asking in HINDI. You MUST reply completely in HINDI language using Devanagari script.]';
+    }
+
     let aiReplyText = '';
 
     try {
-      // Try backend with full live context
+      // Try backend with full live context & language instruction
       let response = await fetch('http://localhost:5000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -632,13 +688,13 @@ export default function PortfolioChat() {
         throw new Error('Backend unavailable');
       }
     } catch {
-      // Local smart fallback with live data
-      aiReplyText = generateLocalResponse(textToSend, liveData);
+      // Local smart fallback with live data and language selection
+      aiReplyText = generateLocalResponse(textToSend, liveData, activeLang);
     }
 
     const aiMsg: Message = { id: Math.random().toString(), sender: 'ai', text: aiReplyText, timestamp: new Date() };
     setMessages(prev => [...prev, aiMsg]);
-    speakResponse(aiReplyText);
+    speakResponse(aiReplyText, activeLang);
   };
 
   return (
