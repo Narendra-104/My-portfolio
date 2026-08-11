@@ -235,16 +235,15 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
   const EX = live.customExperience?.length ? live.customExperience : STATIC_DATA.experience;
 
   // ── GREETING ──
-  if (has('greeting', 'hi ', 'hello', 'hey', 'namaste', 'नमस्ते', 'नमस्कार', 'हे', 'हॅलो', 'हैलो') || q === 'hi') {
-    if (lang === 'mr') {
-      return `👋 नमस्कार! मी नरेंद्रचा AI पोर्टफोलिओ सहाय्यक आहे.\n\nमाझ्याकडे त्याच्या पोर्टफोलिओचा थेट डेटा आहे — तुम्ही मला विचारू शकता:\n• 👨‍💻 परिचय आणि पार्श्वभूमी (About)\n• 🎓 शिक्षण आणि CGPA (Education)\n• 🛠️ कौशल्ये आणि तंत्रज्ञान (Skills)\n• 🚀 प्रकल्प (${live.projects.length}\n• 🏆 प्रमाणपत्रे (${live.certificates.length}\n• 💼 अनुभव आणि इंटर्नशिप (Experience)\n• 📧 संपर्क आणि उपलब्धता (Contact)\n\nतुम्हाला नरेंद्रबद्दल काय जाणून घ्यायचे आहे?`;
-    }
-    if (lang === 'hi') {
-      return `👋 नमस्ते! मैं नरेंद्र का AI पोर्टफोलियो सहायक हूँ।\n\nमेरे पास उनके पोर्टफोलियो का लाइव डेटा है — आप मुझसे पूछ सकते हैं:\n• 👨‍💻 परिचय और पृष्ठभूमि (About)\n• 🎓 शिक्षा और CGPA (Education)\n• 🛠️ कौशल और तकनीक (Skills)\n• 🚀 प्रोजेक्ट्स (${live.projects.length} \n• 🏆 प्रमाण पत्र (${live.certificates.length}\n• 💼 अनुभव और इंटर्नशिप (Experience)\n• 📧 संपर्क और उपलब्धता (Contact)\n\nआप नरेंद्र के बारे में क्या जानना चाहते हैं?`;
-    }
-    return `👋 Hello! I'm Narendra's AI Portfolio Assistant.\n\nI have live data from his portfolio — you can ask me about:\n• 👨‍💻 About & Background\n• 🎓 Education & CGPA\n• 🛠️ Skills & Technologies\n• 🚀 Projects (${live.projects.length} \n• 🏆 Certificates (${live.certificates.length}\n• 💼 Experience & Internships\n• 📧 Contact & Availability\n\nWhat would you like to know about Narendra?`;
+ if (has('greeting', 'hi ', 'hello', 'hey', 'namaste', 'नमस्ते', 'नमस्कार', 'हे', 'हॅलो', 'हैलो') || q === 'hi') {
+  if (lang === 'mr') {
+    return `👋 नमस्कार! मी नरेंद्रचा AI पोर्टफोलिओ सहाय्यक आहे.\n\nमाझ्याकडे त्याच्या पोर्टफोलिओचा थेट डेटा आहे — तुम्ही मला विचारू शकता:\n• 👨‍💻 परिचय आणि पार्श्वभूमी (About)\n• 🎓 शिक्षण आणि CGPA (Education)\n• 🛠️ कौशल्ये आणि तंत्रज्ञान (Skills)\n• 🚀 प्रकल्प (Projects)\n• 🏆 प्रमाणपत्रे (Certificates)\n• 💼 अनुभव आणि इंटर्नशिप (Experience)\n• 📧 संपर्क आणि उपलब्धता (Contact)\n\nतुम्हाला नरेंद्रबद्दल काय जाणून घ्यायचे आहे?`;
   }
-
+  if (lang === 'hi') {
+    return `👋 नमस्ते! मैं नरेंद्र का AI पोर्टफोलियो सहायक हूँ।\n\nमेरे पास उनके पोर्टफोलियो का लाइव डेटा है — आप मुझसे पूछ सकते हैं:\n• 👨‍💻 परिचय और पृष्ठभूमि (About)\n• 🎓 शिक्षा और CGPA (Education)\n• 🛠️ कौशल और तकनीक (Skills)\n• 🚀 प्रोजेक्ट्स (Projects)\n• 🏆 प्रमाण पत्र (Certificates)\n• 💼 अनुभव और इंटर्नशिप (Experience)\n• 📧 संपर्क और उपलब्धता (Contact)\n\nआप नरेंद्र के बारे में क्या जानना चाहते हैं?`;
+  }
+  return `👋 Hello! I'm Narendra's AI Portfolio Assistant.\n\nI have live data from his portfolio — you can ask me about:\n• 👨‍💻 About & Background\n• 🎓 Education & CGPA\n• 🛠️ Skills & Technologies\n• 🚀 Projects\n• 🏆 Certificates\n• 💼 Experience & Internships\n• 📧 Contact & Availability\n\nWhat would you like to know about Narendra?`;
+}
   // ── ABOUT ──
   if (has(
     'who is', 'who are', 'about narendra', 'tell me about', 'about him', 'tell about narendra',
