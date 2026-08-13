@@ -31,9 +31,9 @@ const STATIC_DATA = {
     university: 'JSPM University',
     campus: 'Wagholi, Pune, Maharashtra, India',
     period: '2024 — 2028 (Expected graduation: 2028)',
-    cgpa: '8.60 / 10 (Average CGPA)',
-    cgpaFirstYear: '8.65 / 10',
-    cgpaSecondYear: '8.55 / 10',
+    cgpa: '8.60  (Average CGPA)',
+    cgpaFirstYear: '8.65 ',
+    cgpaSecondYear: '8.55   ',
     subjects: 'Data Structures, Analysis & Design of Algorithms, Object-Oriented Software Engineering, Web Engineering, and AI/ML foundations.',
   },
   skills: {
