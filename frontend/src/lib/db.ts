@@ -18,6 +18,21 @@ export interface ContactMessageRow {
   created_at?: string;
 }
 
+export interface VisitorLogRow {
+  id?: string;
+  ip?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  org?: string;
+  device?: string;
+  browser?: string;
+  referrer?: string;
+  user_agent?: string;
+  visited_at?: string;
+}
+
+
 // ─── Helper: Log DB errors clearly ──────────────────────────
 
 function dbError(fn: string, err: any) {
@@ -57,6 +72,35 @@ export async function fetchContactMessages(): Promise<ContactMessageRow[]> {
     return [];
   }
 }
+
+// ─── 1B. PORTFOLIO VISITORS ──────────────────────────────────
+
+export async function logVisitor(visitor: Omit<VisitorLogRow, 'id' | 'visited_at'>) {
+  try {
+    const { error } = await supabase.from('portfolio_visitors').insert([visitor]);
+    if (error) dbError('logVisitor', error);
+    return !error;
+  } catch (e) {
+    dbError('logVisitor', e);
+    return false;
+  }
+}
+
+export async function fetchVisitorLogs(): Promise<VisitorLogRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('portfolio_visitors')
+      .select('*')
+      .order('visited_at', { ascending: false })
+      .limit(50);
+    if (error) { dbError('fetchVisitorLogs', error); return []; }
+    return data || [];
+  } catch (e) {
+    dbError('fetchVisitorLogs', e);
+    return [];
+  }
+}
+
 
 export async function deleteContactMessage(id: string) {
   try {

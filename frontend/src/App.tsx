@@ -24,8 +24,13 @@ import PortfolioChat from './components/ai/PortfolioChat';
 import OwnerLoginModal from './components/modals/OwnerLoginModal';
 import OwnerAnalyticsModal from './components/modals/OwnerAnalyticsModal';
 
+// Hooks
+import { useVisitorTracker } from './hooks/useVisitorTracker';
+
 export default function App() {
+  useVisitorTracker();
   const [activeSection, setActiveSection] = useState<NavSection>('home');
+
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('alex_portfolio_dark_mode');
     if (saved) {

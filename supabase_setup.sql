@@ -87,6 +87,29 @@ DROP POLICY IF EXISTS "Public read messages"    ON contact_messages;
 CREATE POLICY "Public insert messages" ON contact_messages FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public read messages"   ON contact_messages FOR SELECT USING (true);
 
+-- 5. PORTFOLIO VISITORS TABLE (for visitor notifications & analytics)
+CREATE TABLE IF NOT EXISTS portfolio_visitors (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ip           TEXT,
+  city         TEXT,
+  region       TEXT,
+  country      TEXT,
+  org          TEXT,
+  device       TEXT,
+  browser      TEXT,
+  referrer     TEXT,
+  user_agent   TEXT,
+  visited_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ENABLE RLS ON portfolio_visitors
+ALTER TABLE portfolio_visitors ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public insert visitors" ON portfolio_visitors;
+DROP POLICY IF EXISTS "Public read visitors"   ON portfolio_visitors;
+CREATE POLICY "Public insert visitors" ON portfolio_visitors FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public read visitors"   ON portfolio_visitors FOR SELECT USING (true);
+
 -- ============================================================
 -- STORAGE BUCKET — portfolio-images
 -- Run this too (Storage → Create bucket via Dashboard OR via SQL below)
@@ -114,5 +137,6 @@ CREATE POLICY "Public update portfolio-images"
   USING (bucket_id = 'portfolio-images');
 
 -- ============================================================
--- DONE! All 4 tables and storage bucket are ready.
+-- DONE! All 5 tables and storage bucket are ready.
 -- ============================================================
+

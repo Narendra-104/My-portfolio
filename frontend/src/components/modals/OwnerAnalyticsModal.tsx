@@ -5,6 +5,8 @@ import {
   RefreshCw, TrendingUp, Laptop, AppWindow, ArrowUpRight 
 } from 'lucide-react';
 
+import { fetchVisitorLogs, VisitorLogRow } from '../../lib/db';
+
 interface OwnerAnalyticsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,10 +17,13 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
   const [loading, setLoading] = useState<boolean>(true);
   const [errorOnApi, setErrorOnApi] = useState<boolean>(false);
   
-  // Real-time local session dwell metrics
+  // Real-time local session dwell metrics & visitor logs
   const [dwellStats, setDwellStats] = useState<Record<string, number>>({});
+  const [visitorLogs, setVisitorLogs] = useState<VisitorLogRow[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
   const [liveUsersCount, setLiveUsersCount] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sections'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sections' | 'visitors'>('overview');
+
 
   const NAMESPACE = '3d3081af-1b9a-4a6d-8e90-cfe332f51c7e';
   const KEY = 'page_views';
@@ -48,9 +53,17 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
     }
   };
 
+  const loadVisitorLogs = async () => {
+    setIsLoadingLogs(true);
+    const logs = await fetchVisitorLogs();
+    setVisitorLogs(logs);
+    setIsLoadingLogs(false);
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetchViews();
+      loadVisitorLogs();
 
       // Read local portfolio dwell times
       const savedDwells = localStorage.getItem('portfolio_dwell_times');
@@ -62,10 +75,10 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
         }
       }
 
-      // Simulate a fluctuating concurrent users count for high fidelity live look
-      setLiveUsersCount(Math.floor(Math.random() * 3) + 2); // 2 to 4 active users
+      setLiveUsersCount(Math.floor(Math.random() * 3) + 2);
     }
   }, [isOpen]);
+
 
   if (!isOpen) return null;
 
@@ -166,11 +179,23 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
           >
             Section Engagement
           </button>
+          <button
+            onClick={() => setActiveTab('visitors')}
+            className={`py-3 px-4 font-headline text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'visitors'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <Users size={14} />
+            Live Profile Viewers ({visitorLogs.length})
+          </button>
         </div>
+
 
         {/* Dynamic Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-grow">
-          {activeTab === 'overview' ? (
+          {activeTab === 'overview' && (
             <>
               {/* Top metrics grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -365,13 +390,17 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
                       <span>LinkedIn Profile</span>
                       <span className="font-bold text-on-surface">25%</span>
                     </div>
+                    <span className="text-[10px] font-bold text-emerald-500">Live now</span>
                   </div>
+                  <p className="text-[10px] text-on-surface-variant/80 mt-1.5">
+                    Simulated active visitors
+                  </p>
                 </div>
               </div>
 
-              {/* Production Live Tracking Confirmation */}
-              <div className="p-4 bg-primary/5 border border-primary/25 rounded-xl flex gap-3 items-start">
-                <div className="p-1.5 bg-primary/10 text-primary rounded-lg shrink-0">
+              {/* Status Note */}
+              <div className="p-4 bg-surface-container-low border border-outline-variant/20 rounded-xl flex items-start gap-3">
+                <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0 mt-0.5">
                   <Globe size={16} className="animate-pulse" />
                 </div>
                 <div>
@@ -385,7 +414,9 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
                 </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {activeTab === 'sections' && (
             <div className="space-y-5">
               <div className="p-4 bg-surface-container-low border border-outline-variant/20 rounded-xl">
                 <h3 className="font-headline text-xs font-bold text-on-surface mb-1.5">
@@ -406,7 +437,7 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
                 <div className="space-y-4">
                   {Object.keys(sectionLabels).map((key) => {
                     const secs = dwellStats[key] || 0;
-                    const percent = totalDwellSeconds > 0 ? (secs / totalDwellSeconds) * 100 : (100 / 6); // default equal split fallback for mock style UI but live binding
+                    const percent = totalDwellSeconds > 0 ? (secs / totalDwellSeconds) * 100 : (100 / 6);
                     const barColor = sectionColors[key] || 'bg-primary';
 
                     return (
@@ -445,7 +476,67 @@ export default function OwnerAnalyticsModal({ isOpen, onClose }: OwnerAnalyticsM
               </div>
             </div>
           )}
+
+          {activeTab === 'visitors' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-surface-container-low p-4 rounded-xl border border-outline-variant/20">
+                <div>
+                  <h3 className="font-headline text-sm font-bold text-on-surface flex items-center gap-2">
+                    <Globe size={16} className="text-primary" /> Live Portfolio Visitors
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">
+                    Instant alerts are dispatched to <strong>narendragond014@gmail.com</strong> whenever someone views your portfolio.
+                  </p>
+                </div>
+                <button
+                  onClick={loadVisitorLogs}
+                  disabled={isLoadingLogs}
+                  className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={isLoadingLogs ? 'animate-spin' : ''} /> Refresh Logs
+                </button>
+              </div>
+
+              {isLoadingLogs ? (
+                <div className="py-8 flex justify-center items-center text-xs text-on-surface-variant gap-2">
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  Loading real-time visitor records…
+                </div>
+              ) : visitorLogs.length === 0 ? (
+                <div className="p-6 text-center bg-surface-container-low rounded-xl border border-outline-variant/20 text-xs text-on-surface-variant">
+                  👀 No database logs recorded yet. Visit notifications are actively being dispatched to <strong>narendragond014@gmail.com</strong>!
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                  {visitorLogs.map((v, i) => (
+                    <div
+                      key={v.id || i}
+                      className="p-3.5 bg-surface-container-low border border-outline-variant/20 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-bold text-on-surface flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>📍 {v.city || 'Location'}, {v.country || 'India'}</span>
+                          <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">
+                            {v.device || 'Desktop'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-on-surface-variant flex items-center gap-3">
+                          <span>🌐 {v.ip || 'Hidden'} ({v.org || 'ISP'})</span>
+                          <span>💻 {v.browser || 'Browser'}</span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-on-surface-variant/80 font-mono text-right shrink-0">
+                        {v.visited_at ? new Date(v.visited_at).toLocaleString('en-IN') : 'Just now'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
 
         {/* Footer */}
         <div className="px-6 py-4 bg-surface-container-low border-t border-outline-variant/20 flex justify-between items-center text-xs font-semibold text-on-surface-variant">
