@@ -442,14 +442,22 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
                 className="group relative flex flex-col bg-surface-container-low border border-outline-variant/10 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl hover:border-primary/20 transition-all duration-300 cursor-pointer"
                 onClick={() => setSelectedProject(project)}
               >
-                <div className="relative aspect-video w-full overflow-hidden bg-black/5 dark:bg-white/5 border-b border-outline-variant/10">
+                <div className="relative h-64 sm:h-72 md:h-80 w-full overflow-hidden bg-black/10 dark:bg-zinc-950/80 border-b border-outline-variant/10 flex items-center justify-center p-3">
+                  {/* Ambient backdrop for seamless presentation across mobile portrait or landscape screenshots */}
+                  <img 
+                    src={project.image} 
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-25 scale-110 pointer-events-none"
+                  />
+                  {/* Full uncropped project photo */}
                   <img 
                     src={project.image} 
                     alt={project.title}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
+                    className="relative max-h-full max-w-full w-auto h-auto object-contain transition-transform duration-500 group-hover:scale-105 drop-shadow-md rounded-lg z-10"
                   />
-                  <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full">
+                  <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full z-20">
                     <span className="text-[10px] font-mono text-white/90 font-semibold tracking-wider uppercase">
                       {project.category}
                     </span>
@@ -572,27 +580,35 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-2xl bg-surface-container-lowest border border-outline/25 rounded-2xl shadow-2xl overflow-hidden z-10 text-left flex flex-col max-h-[90vh]"
             >
-              <div className="relative aspect-video w-full bg-black/5 dark:bg-white/5 border-b border-outline-variant/10 overflow-hidden shrink-0">
+              <div className="relative h-72 sm:h-80 md:h-96 w-full bg-zinc-950/80 border-b border-outline-variant/10 overflow-hidden shrink-0 flex items-center justify-center p-4">
+                {/* Ambient blur */}
+                <img 
+                  src={selectedProject.image} 
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-30 scale-110 pointer-events-none"
+                />
+                {/* Full uncropped image */}
                 <img 
                   src={selectedProject.image} 
                   alt={selectedProject.title}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
+                  className="relative max-h-full max-w-full w-auto h-auto object-contain drop-shadow-xl rounded-lg z-10"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none z-10" />
                 
                 <button
                   onClick={() => setSelectedProject(null)}
-                  className="absolute top-4 right-4 p-2 bg-black/50 text-white hover:bg-black/80 rounded-full border border-white/10 transition-colors cursor-pointer"
+                  className="absolute top-4 right-4 p-2 bg-black/60 text-white hover:bg-black/90 rounded-full border border-white/10 transition-colors cursor-pointer z-20"
                 >
                   <X size={16} />
                 </button>
 
-                <div className="absolute bottom-6 left-6 right-6">
+                <div className="absolute bottom-4 left-6 right-6 z-20">
                   <span className="px-2.5 py-1 bg-primary/20 backdrop-blur-md border border-primary/30 text-primary text-[10px] font-mono font-bold tracking-widest uppercase rounded-full">
                     {selectedProject.category}
                   </span>
-                  <h3 className="font-headline text-xl md:text-2xl font-bold text-white mt-3 leading-tight drop-shadow-md">
+                  <h3 className="font-headline text-xl md:text-2xl font-bold text-white mt-2 leading-tight drop-shadow-md">
                     {selectedProject.title}
                   </h3>
                 </div>

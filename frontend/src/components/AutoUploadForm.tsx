@@ -96,8 +96,11 @@ export default function AutoUploadForm() {
                 <span className="text-xs font-medium">Auto‑uploading to Supabase…</span>
               </div>
             ) : uploadedImageUrl ? (
-              <div className="flex flex-col items-center gap-2">
-                <img src={uploadedImageUrl} alt="Uploaded preview" className="h-36 w-full object-cover rounded-md" />
+              <div className="flex flex-col items-center gap-2 w-full">
+                <div className="relative h-44 w-full bg-zinc-950/80 border border-zinc-800 rounded-md overflow-hidden flex items-center justify-center p-2">
+                  <img src={uploadedImageUrl} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25" />
+                  <img src={uploadedImageUrl} alt="Uploaded preview" className="relative max-h-full max-w-full object-contain rounded-md" />
+                </div>
                 <span className="flex items-center gap-1 text-emerald-400 text-xs font-medium mt-1">
                   <CheckCircle2 className="h-4 w-4" /> Stored in Supabase Bucket!
                 </span>
