@@ -41,15 +41,10 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
     if (e) {
       e.stopPropagation();
     }
-    const isOwnerLogged = localStorage.getItem('is_owner') === 'true' || isOwner;
-    if (isOwnerLogged) {
-      if (link) {
-        window.open(link, '_blank', 'noopener,noreferrer');
-      } else {
-        alert('No live demonstration URL configured for this project.');
-      }
+    if (link) {
+      window.open(link, '_blank', 'noopener,noreferrer');
     } else {
-      setOwnerOnlyModalOpen(true);
+      alert('No live demonstration URL configured for this project.');
     }
   };
 
