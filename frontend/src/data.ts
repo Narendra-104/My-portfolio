@@ -24,9 +24,9 @@ export const ABOUT_DATA = {
   specialization: {
     title: 'Algorithms, Web & AI/ML Development',
     bullets: [
-      'Data Structures & Algorithm  (Lists, Trees, Graphs, Big-O)',
+      'Data Structures & Algorithms (Lists, Trees, Graphs, Big-O)',
       'Web Development (using AI)',
-      'C langauge'
+      'C Language'
     ]
   }
 };
@@ -121,8 +121,8 @@ export const PROJECTS_DATA: Project[] = [
         "value": "60%"
       },
       {
-        "label": "Progree",
-        "value": "There is still some work remaining."
+        "label": "Progress",
+        "value": "Ongoing development"
       }
     ]
   }

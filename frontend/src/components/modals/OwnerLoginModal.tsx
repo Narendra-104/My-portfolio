@@ -8,6 +8,15 @@ interface OwnerLoginModalProps {
   onLoginSuccess: () => void;
 }
 
+async function computeSha256(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 export default function OwnerLoginModal({ isOpen, onClose, onLoginSuccess }: OwnerLoginModalProps) {
   const [email, setEmail] = useState('');
   const [passcode, setPasscode] = useState('');
@@ -16,7 +25,7 @@ export default function OwnerLoginModal({ isOpen, onClose, onLoginSuccess }: Own
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -31,12 +40,15 @@ export default function OwnerLoginModal({ isOpen, onClose, onLoginSuccess }: Own
 
     setIsLoading(true);
 
-    // Artificial tiny delay for premium responsive feel
-    setTimeout(() => {
+    try {
       const sanitizedEmail = email.trim().toLowerCase();
-      const storedPasscode = localStorage.getItem('owner_custom_passcode') || 'Narendra@2836';
-      
-      if (sanitizedEmail === 'narendragond012@gmail.com' && passcode === storedPasscode) {
+      const inputHash = await computeSha256(passcode);
+      const DEFAULT_HASH = '8ed705bfafba4059d447b2edf4ecef97b14bf3a13e10b170e46b3e708d7fb976';
+      const customPasscode = localStorage.getItem('owner_custom_passcode');
+      const isPassValid = customPasscode ? (passcode === customPasscode || inputHash === customPasscode) : inputHash === DEFAULT_HASH;
+      const validEmails = ['narendragond012@gmail.com', 'narendragond014@gmail.com'];
+
+      if (validEmails.includes(sanitizedEmail) && isPassValid) {
         localStorage.setItem('is_owner', 'true');
         onLoginSuccess();
         setEmail('');
@@ -45,8 +57,11 @@ export default function OwnerLoginModal({ isOpen, onClose, onLoginSuccess }: Own
       } else {
         setError('Invalid owner credentials. Access Denied.');
       }
+    } catch {
+      setError('Authentication failed. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 600);
+    }
   };
 
   return (

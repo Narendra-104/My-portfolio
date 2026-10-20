@@ -50,10 +50,10 @@ export default function Footer({
             onClick={() => onNavigate('home')}
             className="font-headline text-base font-extrabold text-on-surface hover:text-primary transition-colors cursor-pointer"
           >
-            My Portfolio
+            Narendra Gond
           </span>
           <p className="font-sans text-[11px] text-on-surface-variant font-medium mt-0.5">
-            © 2026 My Portfolio. All rights reserved.
+            © {new Date().getFullYear()} Narendra Gond. All rights reserved.
           </p>
           <div className="mt-1 flex items-center gap-1.5 text-[10px] text-on-surface-variant/70">
             {isOwner ? (

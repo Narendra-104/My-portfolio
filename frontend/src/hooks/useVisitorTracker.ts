@@ -11,6 +11,11 @@ export function useVisitorTracker() {
 
     async function trackVisit() {
       try {
+        // Exclude owner themselves from triggering alerts
+        if (localStorage.getItem('is_owner') === 'true') {
+          return;
+        }
+
         // Rate limiting check: Throttle notifications for 30 minutes per browser/session
         const lastTracked = localStorage.getItem(SESSION_KEY);
         const now = Date.now();
