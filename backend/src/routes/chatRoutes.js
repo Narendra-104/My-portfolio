@@ -36,7 +36,7 @@ CRITICAL OUTPUT & LANGUAGE RULES
    - If the user writes in English, respond 100% in English.
 
 =========================================
-NARENDRA GOND'S PORTFOLIO DATA
+NARENDRA GOND'S PORTFOLIO DATA (BASELINE)
 =========================================
 
 1. ABOUT NARENDRA GOND:
@@ -99,15 +99,19 @@ function formatHistoryForGemini(rawHistory) {
     .filter(Boolean);
 }
 
-async function generateWithFallback(genAI, userQuery, rawHistory) {
+async function generateWithFallback(genAI, userQuery, rawHistory, liveContext) {
   const cleanHistory = formatHistoryForGemini(rawHistory);
   let lastError = null;
+
+  const dynamicInstruction = liveContext
+    ? `${SYSTEM_INSTRUCTION}\n\n=========================================\nUPDATED LIVE PORTFOLIO DATA (OVERRIDE ANY PREVIOUS DATA WITH THIS):\n${liveContext}`
+    : SYSTEM_INSTRUCTION;
 
   for (const modelName of STABLE_MODELS) {
     try {
       const model = genAI.getGenerativeModel({ 
         model: modelName,
-        systemInstruction: SYSTEM_INSTRUCTION 
+        systemInstruction: dynamicInstruction 
       });
 
       if (cleanHistory.length > 0) {
@@ -129,7 +133,7 @@ async function generateWithFallback(genAI, userQuery, rawHistory) {
 
 router.post('/chat', async (req, res) => {
   try {
-    const { message, prompt, text, input, history, chatHistory } = req.body;
+    const { message, prompt, text, input, history, chatHistory, context } = req.body;
     const userQuery = message || prompt || text || input;
 
     if (!userQuery) {
@@ -142,7 +146,7 @@ router.post('/chat', async (req, res) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const replyText = await generateWithFallback(genAI, userQuery, history || chatHistory);
+    const replyText = await generateWithFallback(genAI, userQuery, history || chatHistory, context);
 
     return res.json({ 
       reply: replyText, 

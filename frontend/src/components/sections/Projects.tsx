@@ -243,6 +243,7 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
 
         setProjects(updated);
         localStorage.setItem('portfolio_custom_projects', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('portfolio_projects_updated', { detail: updated }));
       } catch (err: any) {
         alert('Failed to delete project: ' + err.message);
       }
@@ -297,7 +298,8 @@ export default function Projects({ isOwner = false }: ProjectsProps) {
 
       // 3. Update local state and localStorage cache
       setProjects(updated);
-      localStorage.setItem('portfolio_custom_projects', JSON.stringify(updated));
+        localStorage.setItem('portfolio_custom_projects', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('portfolio_projects_updated', { detail: updated }));
       setIsEditModalOpen(false);
     } catch (err: any) {
       alert('Failed to save project: ' + err.message);

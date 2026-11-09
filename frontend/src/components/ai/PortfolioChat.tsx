@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, MicOff, Send, Volume2, VolumeX, Square, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
 import { fetchProjects, fetchCertificates, fetchPortfolioSetting } from '../../lib/db';
 import type { Project, Certificate } from '../../types';
@@ -90,18 +90,100 @@ interface LivePortfolioContext {
   loaded: boolean;
 }
 
+// ─── Extract Fresh Live Data from Memory & LocalStorage ─────────
+function getLatestLiveData(currentLive: LivePortfolioContext): LivePortfolioContext {
+  let customAbout = currentLive.customAbout;
+  let customSkills = currentLive.customSkills;
+  let customExperience = currentLive.customExperience;
+  let customProfile = currentLive.customProfile;
+  let projects = currentLive.projects;
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const sAbout = localStorage.getItem('portfolio_custom_about');
+      if (sAbout) {
+        const parsed = JSON.parse(sAbout);
+        if (parsed && (parsed.education || parsed.journey || parsed.byline || parsed.careerObjective)) {
+          customAbout = parsed;
+        }
+      }
+      const sSkills = localStorage.getItem('portfolio_custom_skills');
+      if (sSkills) {
+        const parsed = JSON.parse(sSkills);
+        if (parsed && (Array.isArray(parsed.column1) || Array.isArray(parsed.core))) {
+          customSkills = parsed;
+        }
+      }
+      const sExp = localStorage.getItem('portfolio_custom_experience');
+      if (sExp) {
+        const parsed = JSON.parse(sExp);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          customExperience = parsed;
+        }
+      }
+      const sProf = localStorage.getItem('portfolio_custom_profile');
+      if (sProf) {
+        const parsed = JSON.parse(sProf);
+        if (parsed && parsed.name) {
+          customProfile = parsed;
+        }
+      }
+      const sProj = localStorage.getItem('portfolio_custom_projects');
+      if (sProj && projects.length === 0) {
+        const parsed = JSON.parse(sProj);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          projects = parsed;
+        }
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+  }
+
+  return {
+    ...currentLive,
+    projects,
+    customAbout,
+    customSkills,
+    customExperience,
+    customProfile,
+  };
+}
+
 // ─── Build full text context for AI answering ─────────────────
-function buildContext(live: LivePortfolioContext): string {
+function buildContext(rawLive: LivePortfolioContext): string {
+  const live = getLatestLiveData(rawLive);
   const A = STATIC_DATA.about;
   const E = STATIC_DATA.education;
   const C = STATIC_DATA.contact;
   const EX = STATIC_DATA.experience;
   const SK = STATIC_DATA.skills;
 
-  // Merge custom about if available
-  const aboutData = live.customAbout ? { ...A, ...live.customAbout } : A;
-  const skillsData = live.customSkills ? { ...SK, ...live.customSkills } : SK;
-  const expData: typeof EX = live.customExperience?.length ? live.customExperience : EX;
+  const profile = live.customProfile || {};
+  const customAbout = live.customAbout || {};
+  const name = profile.name || customAbout.name || A.name;
+  const role = profile.role || customAbout.role || A.role;
+  const summary = customAbout.journey || customAbout.summary || profile.tagline || customAbout.byline || A.summary;
+  const careerObjective = customAbout.careerObjective || A.careerObjective;
+  const specTitle = customAbout.specialization?.title || '';
+  const specBullets = customAbout.specialization?.bullets?.filter(Boolean).join(', ') || '';
+
+  const edu = customAbout.education || E;
+  const eduDegree = edu.degree || E.degree;
+  const eduInstitution = edu.institution || edu.university || E.university;
+  const eduPeriod = edu.period || E.period;
+  const eduCgpa = edu.cgpa || E.cgpa;
+  const eduDetails = edu.details || edu.subjects || E.subjects;
+  const eduHonors = (edu.honors && edu.honors.length > 0) ? edu.honors.filter(Boolean).join(', ') : '';
+
+  const customSkills = live.customSkills;
+  const hasColSkills = customSkills && (customSkills.column1?.length || customSkills.column2?.length);
+  const skillsCol1: string[] = hasColSkills && customSkills.column1?.length ? customSkills.column1 : SK.core;
+  const skillsCol2: string[] = hasColSkills && customSkills.column2?.length ? customSkills.column2 : SK.frontend;
+
+  const expData: typeof EX = (live.customExperience && live.customExperience.length > 0)
+    ? live.customExperience
+    : EX;
 
   const projectLines = live.projects.length > 0
     ? live.projects.map((p, i) =>
@@ -121,35 +203,36 @@ function buildContext(live: LivePortfolioContext): string {
       ).join('\n')
     : '  (No certificates stored in database yet)';
 
-  const expLines = expData.map((ex: any, i: number) =>
-    `  ${i + 1}. ${ex.role} @ ${ex.company} (${ex.period})\n     ${ex.responsibilities || ex.description || ''}`
-  ).join('\n');
+  const expLines = expData.map((ex: any, i: number) => {
+    let line = `  ${i + 1}. ${ex.role} @ ${ex.company} (${ex.period})`;
+    if (ex.location) line += ` [${ex.location}]`;
+    const desc = ex.description || ex.responsibilities || (Array.isArray(ex.bullets) ? ex.bullets.join('; ') : '');
+    if (desc) line += `\n     Overview: ${desc}`;
+    if (ex.skills?.length) line += `\n     Skills: ${Array.isArray(ex.skills) ? ex.skills.join(', ') : ex.skills}`;
+    return line;
+  }).join('\n');
 
   return `
-=== NARENDRA GOND — LIVE PORTFOLIO DATA ===
+=== ${name.toUpperCase()} — LIVE PORTFOLIO DATA ===
 
-[ABOUT]
-Name: ${aboutData.name}
-Role: ${aboutData.role}
-Location: ${aboutData.location || C.location}
-Summary: ${aboutData.summary || aboutData.tagline || ''}
-Career Objective: ${aboutData.careerObjective || ''}
-Development Philosophy: ${aboutData.developmentPhilosophy || ''}
-Focus Areas: ${aboutData.focusArea || ''}
+[ABOUT / PROFILE]
+Name: ${name}
+Role: ${role}
+Location: ${C.location}
+Bio / Journey: ${summary}
+Career Objective: ${careerObjective}
+${specTitle ? `Specialization: ${specTitle} — ${specBullets}` : ''}
 
-[EDUCATION]
-Degree: ${E.degree} | University: ${E.university}, ${E.campus}
-Period: ${E.period}
-CGPA: ${E.cgpa} (Year 1: ${E.cgpaFirstYear}, Year 2: ${E.cgpaSecondYear})
-Subjects: ${E.subjects}
+[EDUCATION & ACADEMICS]
+Degree: ${eduDegree}
+Institution / University: ${eduInstitution}
+Period: ${eduPeriod}
+CGPA / Marks: ${eduCgpa}
+Details / Subjects: ${eduDetails}
+${eduHonors ? `Honors / Achievements: ${eduHonors}` : ''}
 
 [TECHNICAL SKILLS]
-Core: ${skillsData.core?.join(', ') || SK.core.join(', ')}
-Frontend: ${skillsData.frontend?.join(', ') || SK.frontend.join(', ')}
-Backend: ${skillsData.backend?.join(', ') || SK.backend.join(', ')}
-Databases: ${skillsData.databases?.join(', ') || SK.databases.join(', ')}
-AI/ML: ${skillsData.ai?.join(', ') || SK.ai.join(', ')}
-Cloud: ${skillsData.cloud?.join(', ') || SK.cloud.join(', ')}
+${hasColSkills ? `Core Programming & CS Foundations: ${skillsCol1.join(', ')}\nDevelopment & Tools: ${skillsCol2.join(', ')}` : `Core: ${SK.core.join(', ')}\nFrontend: ${SK.frontend.join(', ')}\nBackend: ${SK.backend.join(', ')}\nDatabases: ${SK.databases.join(', ')}\nAI/ML: ${SK.ai.join(', ')}\nCloud: ${SK.cloud.join(', ')}`}
 
 [PROJECTS — LIVE FROM DATABASE]
 ${projectLines}
@@ -157,7 +240,7 @@ ${projectLines}
 [CERTIFICATES — LIVE FROM DATABASE]
 ${certLines}
 
-[EXPERIENCE & INTERNSHIPS]
+[EXPERIENCE & INTERNSHIPS — LIVE UPDATED]
 ${expLines}
 
 [CONTACT]
@@ -166,7 +249,7 @@ Location: ${C.location}
 GitHub: ${C.github} (@${C.githubUsername})
 LinkedIn: ${C.linkedin} (ID: ${C.linkedinId})
 Availability: ${C.availability}
-Why Hire Narendra: ${C.whyHire}
+Why Hire ${name}: ${C.whyHire}
 `.trim();
 }
 
@@ -221,29 +304,54 @@ function detectQueryLanguage(query: string, currentSelectedLang: string = 'en-US
 }
 
 // ─── Smart keyword-based local responder ──────────────────────
-function generateLocalResponse(query: string, live: LivePortfolioContext, selectedLang: string = 'en-US'): string {
+function generateLocalResponse(query: string, rawLive: LivePortfolioContext, selectedLang: string = 'en-US'): string {
+  const live = getLatestLiveData(rawLive);
   const q = query.toLowerCase().trim();
   const lang = detectQueryLanguage(query, selectedLang);
 
   // Broad keyword checker — checks both raw query and normalized query
   const has = (...words: string[]) => words.some(w => q.includes(w));
 
-  const A = STATIC_DATA.about;
-  const E = STATIC_DATA.education;
+  const profile = live.customProfile || {};
+  const customAbout = live.customAbout || {};
+  const name = profile.name || customAbout.name || STATIC_DATA.about.name;
+  const role = profile.role || customAbout.role || STATIC_DATA.about.role;
+  const location = STATIC_DATA.about.location;
+  const summary = customAbout.journey || customAbout.summary || profile.tagline || customAbout.byline || STATIC_DATA.about.summary;
+  const careerObjective = customAbout.careerObjective || STATIC_DATA.about.careerObjective;
+  const specTitle = customAbout.specialization?.title || '';
+  const specBullets = customAbout.specialization?.bullets?.filter(Boolean).join(', ') || '';
+
+  const edu = customAbout.education || STATIC_DATA.education;
+  const eduInstitution = edu.institution || edu.university || STATIC_DATA.education.university;
+  const eduDegree = edu.degree || STATIC_DATA.education.degree;
+  const eduCgpa = edu.cgpa || STATIC_DATA.education.cgpa;
+  const eduPeriod = edu.period || STATIC_DATA.education.period;
+  const eduDetails = edu.details || edu.subjects || STATIC_DATA.education.subjects;
+  const eduHonors = (edu.honors && edu.honors.length > 0) ? edu.honors.filter(Boolean).join(', ') : '';
+
+  const customSkills = live.customSkills;
+  const hasColSkills = customSkills && (customSkills.column1?.length || customSkills.column2?.length);
+  const skillsCol1: string[] = hasColSkills && customSkills.column1?.length ? customSkills.column1 : STATIC_DATA.skills.core;
+  const skillsCol2: string[] = hasColSkills && customSkills.column2?.length ? customSkills.column2 : STATIC_DATA.skills.frontend;
+
+  const expList: any[] = (live.customExperience && live.customExperience.length > 0)
+    ? live.customExperience
+    : STATIC_DATA.experience;
   const C = STATIC_DATA.contact;
   const SK = STATIC_DATA.skills;
-  const EX = live.customExperience?.length ? live.customExperience : STATIC_DATA.experience;
 
   // ── GREETING ──
- if (has('greeting', 'hi ', 'hello', 'hey', 'namaste', 'नमस्ते', 'नमस्कार', 'हे', 'हॅलो', 'हैलो') || q === 'hi') {
-  if (lang === 'mr') {
-    return `👋 नमस्कार! मी नरेंद्रचा AI पोर्टफोलिओ सहाय्यक आहे.\n\nमाझ्याकडे त्याच्या पोर्टफोलिओचा थेट डेटा आहे — तुम्ही मला विचारू शकता:\n• 👨‍💻 परिचय आणि पार्श्वभूमी (About)\n• 🎓 शिक्षण आणि CGPA (Education)\n• 🛠️ कौशल्ये आणि तंत्रज्ञान (Skills)\n• 🚀 प्रकल्प (Projects)\n• 🏆 प्रमाणपत्रे (Certificates)\n• 💼 अनुभव आणि इंटर्नशिप (Experience)\n• 📧 संपर्क आणि उपलब्धता (Contact)\n\nतुम्हाला नरेंद्रबद्दल काय जाणून घ्यायचे आहे?`;
+  if (has('greeting', 'hi ', 'hello', 'hey', 'namaste', 'नमस्ते', 'नमस्कार', 'हे', 'हॅलो', 'हैलो') || q === 'hi') {
+    if (lang === 'mr') {
+      return `👋 नमस्कार! मी ${name}चा AI पोर्टफोलिओ सहाय्यक आहे.\n\nमाझ्याकडे त्याच्या पोर्टफोलिओचा थेट अपडेटेड डेटा आहे — तुम्ही मला विचारू शकता:\n• 👨‍💻 परिचय आणि पार्श्वभूमी (About)\n• 🎓 शिक्षण आणि CGPA (Education)\n• 🛠️ कौशल्ये आणि तंत्रज्ञान (Skills)\n• 🚀 प्रकल्प (${live.projects.length} लाइव्ह Projects)\n• 🏆 प्रमाणपत्रे (Certificates)\n• 💼 अनुभव आणि इंटर्नशिप (Experience)\n• 📧 संपर्क आणि उपलब्धता (Contact)\n\nतुम्हाला ${name}बद्दल काय जाणून घ्यायचे आहे? 😊`;
+    }
+    if (lang === 'hi') {
+      return `👋 नमस्ते! मैं ${name} का AI पोर्टफोलियो सहायक हूँ।\n\nमेरे पास उनके पोर्टफोलियो का लाइव अपडेटेड डेटा है — आप मुझसे पूछ सकते हैं:\n• 👨‍💻 परिचय और पृष्ठभूमि (About)\n• 🎓 शिक्षा और CGPA (Education)\n• 🛠️ कौशल और तकनीक (Skills)\n• 🚀 प्रोजेक्ट्स (${live.projects.length} लाइव Projects)\n• 🏆 प्रमाण पत्र (Certificates)\n• 💼 अनुभव और इंटर्नशिप (Experience)\n• 📧 संपर्क और उपलब्धता (Contact)\n\nआप ${name} के बारे में क्या जानना चाहते हैं? 😊`;
+    }
+    return `👋 Hello! I'm ${name}'s AI Portfolio Assistant.\n\nI have live updated data from his portfolio — you can ask me about:\n• 👨‍💻 About & Background\n• 🎓 Education & CGPA\n• 🛠️ Skills & Technologies\n• 🚀 Projects (${live.projects.length} live from DB)\n• 🏆 Certificates\n• 💼 Experience & Internships\n• 📧 Contact & Availability\n\nWhat would you like to know about ${name}? 😊`;
   }
-  if (lang === 'hi') {
-    return `👋 नमस्ते! मैं नरेंद्र का AI पोर्टफोलियो सहायक हूँ।\n\nमेरे पास उनके पोर्टफोलियो का लाइव डेटा है — आप मुझसे पूछ सकते हैं:\n• 👨‍💻 परिचय और पृष्ठभूमि (About)\n• 🎓 शिक्षा और CGPA (Education)\n• 🛠️ कौशल और तकनीक (Skills)\n• 🚀 प्रोजेक्ट्स (Projects)\n• 🏆 प्रमाण पत्र (Certificates)\n• 💼 अनुभव और इंटर्नशिप (Experience)\n• 📧 संपर्क और उपलब्धता (Contact)\n\nआप नरेंद्र के बारे में क्या जानना चाहते हैं?`;
-  }
-  return `👋 Hello! I'm Narendra's AI Portfolio Assistant.\n\nI have live data from his portfolio — you can ask me about:\n• 👨‍💻 About & Background\n• 🎓 Education & CGPA\n• 🛠️ Skills & Technologies\n• 🚀 Projects\n• 🏆 Certificates\n• 💼 Experience & Internships\n• 📧 Contact & Availability\n\nWhat would you like to know about Narendra?`;
-}
+
   // ── ABOUT ──
   if (has(
     'who is', 'who are', 'about narendra', 'tell me about', 'about him', 'tell about narendra',
@@ -252,32 +360,32 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
     'कोण आहे', 'नरेंद्र बद्दल', 'बारे में', 'परिचय', 'नरेंद्र कोण', 'about'
   ) && !has('project', 'skill', 'certif', 'education', 'contact', 'experience')) {
     if (lang === 'mr') {
-      return `👨‍💻 **नरेंद्र गोंड** — ${A.role}\n\n${A.summary}\n\n📍 स्थान: **${A.location}**\n🎯 करिअरचे ध्येय: ${A.careerObjective}`;
+      return `👨‍💻 **${name}** — ${role}\n\n${summary}\n\n📍 स्थान: **${location}**\n🎯 करिअरचे ध्येय: ${careerObjective}${specTitle ? `\n\n💡 **विशेषीकरण (${specTitle}):** ${specBullets}` : ''}`;
     }
     if (lang === 'hi') {
-      return `👨‍💻 **नरेंद्र गोंड** — ${A.role}\n\n${A.summary}\n\n📍 स्थान: **${A.location}**\n🎯 करियर का लक्ष्य: ${A.careerObjective}`;
+      return `👨‍💻 **${name}** — ${role}\n\n${summary}\n\n📍 स्थान: **${location}**\n🎯 करियर का लक्ष्य: ${careerObjective}${specTitle ? `\n\n💡 **विशेषज्ञता (${specTitle}):** ${specBullets}` : ''}`;
     }
-    return `👨‍💻 **Narendra Gond** — ${A.role}\n\n${A.summary}\n\n📍 ${A.location}\n🎯 Career Goal: ${A.careerObjective}`;
+    return `👨‍💻 **${name}** — ${role}\n\n${summary}\n\n📍 Location: **${location}**\n🎯 Career Goal: ${careerObjective}${specTitle ? `\n\n💡 **Specialization (${specTitle}):** ${specBullets}` : ''}`;
   }
 
   if (has('location', 'where', 'city', 'address', 'pune', 'कुठे', 'कहाँ')) {
     if (lang === 'mr') {
-      return `📍 नरेंद्र **${A.location}** मध्ये राहतो. तो नवीन संधींसाठी उत्सुक असून रिमोट आणि हायब्रिड रोलसाठी उपलब्ध आहे.`;
+      return `📍 ${name} **${location}** मध्ये राहतो. तो नवीन संधींसाठी उत्सुक असून रिमोट आणि हायब्रिड रोलसाठी उपलब्ध आहे.`;
     }
     if (lang === 'hi') {
-      return `📍 नरेंद्र **${A.location}** में स्थित हैं। वे नए अवसरों की तलाश में हैं और रिमोट/हाइब्रिड भूमिकाओं के लिए उपलब्ध हैं।`;
+      return `📍 ${name} **${location}** में स्थित हैं। वे नए अवसरों की तलाश में हैं और रिमोट/हाइब्रिड भूमिकाओं के लिए उपलब्ध हैं।`;
     }
-    return `📍 Narendra is based in **${A.location}**. He is actively looking for opportunities and is open to remote/hybrid roles as well.`;
+    return `📍 ${name} is based in **${location}**. He is actively looking for opportunities and is open to remote/hybrid roles as well.`;
   }
 
   if (has('career goal', 'objective', 'aim', 'target', 'focus area', 'लक्ष्य', 'ध्येय')) {
     if (lang === 'mr') {
-      return `🎯 **करिअरचे ध्येय:**\n${A.careerObjective}\n\n🔭 **लक्ष्य क्षेत्र:** ${A.focusArea}`;
+      return `🎯 **करिअरचे ध्येय:**\n${careerObjective}${specTitle ? `\n\n🔭 **मुख्य क्षेत्र (${specTitle}):** ${specBullets}` : ''}`;
     }
     if (lang === 'hi') {
-      return `🎯 **करियर का लक्ष्य:**\n${A.careerObjective}\n\n🔭 **मुख्य फोकस:** ${A.focusArea}`;
+      return `🎯 **करियर का लक्ष्य:**\n${careerObjective}${specTitle ? `\n\n🔭 **मुख्य फोकस (${specTitle}):** ${specBullets}` : ''}`;
     }
-    return `🎯 **Career Objective:**\n${A.careerObjective}\n\n🔭 **Focus Areas:** ${A.focusArea}`;
+    return `🎯 **Career Objective:**\n${careerObjective}${specTitle ? `\n\n🔭 **Focus Areas (${specTitle}):** ${specBullets}` : ''}`;
   }
 
   // ── EDUCATION ──
@@ -287,22 +395,23 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
     'विश्वविद्यालय', 'डिग्री', 'b-tech', 'btech', 'b.tech', 'cse'
   )) {
     if (lang === 'mr') {
-      return `🎓 **शिक्षण (Education):**\n• पदवी: **${E.degree}**\n📍 विद्यापीठ: ${E.university}, ${E.campus}\n📅 कालावधी: ${E.period}\n📚 मुख्य विषय: ${E.subjects}`;
+      return `🎓 **शिक्षण (Education):**\n• पदवी: **${eduDegree}**\n📍 संस्था/विद्यापीठ: **${eduInstitution}**\n📅 कालावधी: ${eduPeriod}\n📊 CGPA: **${eduCgpa}**\n📚 विषय/तपशील: ${eduDetails}${eduHonors ? `\n🏅 सन्मान/उपलब्धी: ${eduHonors}` : ''}`;
     }
     if (lang === 'hi') {
-      return `🎓 **शिक्षा (Education):**\n• डिग्री: **${E.degree}**\n📍 विश्वविद्यालय: ${E.university}, ${E.campus}\n📅 अवधि: ${E.period}\n📚 मुख्य विषय: ${E.subjects}`;
+      return `🎓 **शिक्षा (Education):**\n• डिग्री: **${eduDegree}**\n📍 संस्थान/विश्वविद्यालय: **${eduInstitution}**\n📅 अवधि: ${eduPeriod}\n📊 CGPA: **${eduCgpa}**\n📚 विषय/विवरण: ${eduDetails}${eduHonors ? `\n🏅 उपलब्धियां: ${eduHonors}` : ''}`;
     }
-    return `🎓 **Education:**\n${E.degree}\n📍 ${E.university}, ${E.campus}\n📅 ${E.period}\n📚 Subjects: ${E.subjects}`;
+    return `🎓 **Education:**\n• Degree: **${eduDegree}**\n📍 Institution: **${eduInstitution}**\n📅 Period: ${eduPeriod}\n📊 CGPA: **${eduCgpa}**\n📚 Details/Subjects: ${eduDetails}${eduHonors ? `\n🏅 Honors/Achievements: ${eduHonors}` : ''}`;
   }
 
+  // ── CGPA & GRADES ──
   if (has('cgpa', 'marks', 'grade', 'score', 'percentage', 'first year', '1st year', 'second year', '2nd year', 'गुण', 'अंक')) {
     if (lang === 'mr') {
-      return `📊 **शैक्षणिक कामगिरी (CGPA):**\n• सरासरी CGPA: **${E.cgpa} / 10**\n• प्रथम वर्ष: ${E.cgpaFirstYear}\n• द्वितीय वर्ष: ${E.cgpaSecondYear}`;
+      return `📊 **शैक्षणिक कामगिरी (CGPA):**\n• सरासरी CGPA: **${eduCgpa}**\n• पदवी आणि संस्था: **${eduDegree}** @ **${eduInstitution}**\n• कालावधी: ${eduPeriod}`;
     }
     if (lang === 'hi') {
-      return `📊 **शैक्षणिक प्रदर्शन (CGPA):**\n• औसत CGPA: **${E.cgpa} / 10**\n• प्रथम वर्ष: ${E.cgpaFirstYear}\n• द्वितीय वर्ष: ${E.cgpaSecondYear}`;
+      return `📊 **शैक्षणिक प्रदर्शन (CGPA):**\n• औसत CGPA: **${eduCgpa}**\n• डिग्री और संस्थान: **${eduDegree}** @ **${eduInstitution}**\n• अवधि: ${eduPeriod}`;
     }
-    return `📊 **Academic Performance:**\n• Average CGPA: **${E.cgpa}**\n• 1st Year: ${E.cgpaFirstYear}\n• 2nd Year: ${E.cgpaSecondYear}`;
+    return `📊 **Academic Performance (CGPA):**\n• CGPA: **${eduCgpa}**\n• Degree & Institution: **${eduDegree}** @ **${eduInstitution}**\n• Period: ${eduPeriod}`;
   }
 
   // ── SKILLS ──
@@ -312,13 +421,23 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
     'machine learning', 'artificial', 'frontend', 'backend', 'database',
     'कौशल्य', 'कौशल', 'स्किल', 'तंत्रज्ञान', 'कौशल्ये'
   )) {
+    if (hasColSkills) {
+      if (lang === 'mr') {
+        return `🛠️ **${name}ची अद्ययावत तांत्रिक कौशल्ये (Tech Stack):**\n\n• **मुख्य आणि CS फाउंडेशन:** ${skillsCol1.join(', ')}\n• **डेव्हलपमेंट आणि टूल्स:** ${skillsCol2.join(', ')}`;
+      }
+      if (lang === 'hi') {
+        return `🛠️ **${name} का नवीनतम तकनीकी कौशल (Tech Stack):**\n\n• **मुख्य और CS फाउंडेशन:** ${skillsCol1.join(', ')}\n• **डेवलपमेंट और टूल्स:** ${skillsCol2.join(', ')}`;
+      }
+      return `🛠️ **${name}'s Updated Tech Stack:**\n\n• **Core Programming & CS Foundations:** ${skillsCol1.join(', ')}\n• **Development & Tools:** ${skillsCol2.join(', ')}`;
+    }
+
     if (lang === 'mr') {
-      return `🛠️ **नरेंद्रची संपूर्ण तांत्रिक कौशल्ये (Tech Stack):**\n\n• **मुख्य (Core):** ${SK.core.join(', ')}\n• **फ्रंटएंड (Frontend):** ${SK.frontend.join(', ')}\n• **बॅकएंड (Backend):** ${SK.backend.join(', ')}\n• **डेटाबेस (Databases):** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **क्लाउड (Cloud):** ${SK.cloud.join(', ')}`;
+      return `🛠️ **${name}ची संपूर्ण तांत्रिक कौशल्ये (Tech Stack):**\n\n• **मुख्य (Core):** ${SK.core.join(', ')}\n• **फ्रंटएंड (Frontend):** ${SK.frontend.join(', ')}\n• **बॅकएंड (Backend):** ${SK.backend.join(', ')}\n• **डेटाबेस (Databases):** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **क्लाउड (Cloud):** ${SK.cloud.join(', ')}`;
     }
     if (lang === 'hi') {
-      return `🛠️ **नरेंद्र का पूरा तकनीकी कौशल (Tech Stack):**\n\n• **मुख्य (Core):** ${SK.core.join(', ')}\n• **फ्रंटएंड (Frontend):** ${SK.frontend.join(', ')}\n• **बैकएंड (Backend):** ${SK.backend.join(', ')}\n• **डेटाबेस (Databases):** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **क्लाउड (Cloud):** ${SK.cloud.join(', ')}`;
+      return `🛠️ **${name} का पूरा तकनीकी कौशल (Tech Stack):**\n\n• **मुख्य (Core):** ${SK.core.join(', ')}\n• **फ्रंटएंड (Frontend):** ${SK.frontend.join(', ')}\n• **बैकएंड (Backend):** ${SK.backend.join(', ')}\n• **डेटाबेस (Databases):** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **क्लाउड (Cloud):** ${SK.cloud.join(', ')}`;
     }
-    return `🛠️ **Narendra's Full Tech Stack:**\n\n• **Core:** ${SK.core.join(', ')}\n• **Frontend:** ${SK.frontend.join(', ')}\n• **Backend:** ${SK.backend.join(', ')}\n• **Databases:** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **Cloud:** ${SK.cloud.join(', ')}`;
+    return `🛠️ **${name}'s Full Tech Stack:**\n\n• **Core:** ${SK.core.join(', ')}\n• **Frontend:** ${SK.frontend.join(', ')}\n• **Backend:** ${SK.backend.join(', ')}\n• **Databases:** ${SK.databases.join(', ')}\n• **AI/ML:** ${SK.ai.join(', ')}\n• **Cloud:** ${SK.cloud.join(', ')}`;
   }
 
   // ── PROJECTS ──
@@ -329,31 +448,34 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
     'प्रोजेक्ट', 'प्रकल्प', 'बनाए', 'प्रकल्पे', 'परियोजना'
   )) {
     if (live.projects.length > 0) {
-      const list = live.projects.map((p, i) => `${i + 1}. **${p.title}** [${p.category}]\n   ${p.description}${p.link ? `\n   🔗 Live: ${p.link}` : ''}`).join('\n\n');
+      const list = live.projects.map((p, i) =>
+        `${i + 1}. **${p.title}** [${p.category}]\n   ${p.description}${p.tags?.length ? `\n   🛠️ Tech: ${p.tags.join(', ')}` : ''}${p.link ? `\n   🔗 Live: ${p.link}` : ''}${p.github ? `\n   💻 GitHub: ${p.github}` : ''}`
+      ).join('\n\n');
       if (lang === 'mr') {
-        return `🚀 **नरेंद्रचे प्रकल्प** (${live.projects.length} डेटाबेस मधून लाइव्ह):\n\n${list}\n\nकोणत्याही प्रकल्पाबद्दल अधिक सविस्तर माहितीसाठी विचारू शकता!`;
+        return `🚀 **${name}चे प्रकल्प** (${live.projects.length} लाइव्ह डेटा):\n\n${list}\n\nकोणत्याही प्रकल्पाबद्दल अधिक सविस्तर माहितीसाठी विचारू शकता!`;
       }
       if (lang === 'hi') {
-        return `🚀 **नरेंद्र के प्रोजेक्ट्स** (${live.projects.length} डेटाबेस से लाइव):\n\n${list}\n\nकिसी भी प्रोजेक्ट के बारे में विस्तार से जानने के लिए पूछें!`;
+        return `🚀 **${name} के प्रोजेक्ट्स** (${live.projects.length} लाइव डेटा):\n\n${list}\n\nकिसी भी प्रोजेक्ट के बारे में विस्तार से जानने के लिए पूछें!`;
       }
+      return `🚀 **${name}'s Projects** (${live.projects.length} live from database):\n\n${list}\n\nAsk me about any project for more details!`;
     } else {
-      // Static project data as fallback when DB is empty
       const staticProjects = [
         { title: 'VisionTrack', category: 'Computer Vision / AI', description: 'A real-time face recognition and attendance tracking system built using OpenCV, Python, and Firebase. Automates attendance logging with live camera feed.', tech: 'Python, OpenCV, Firebase, Face Recognition' },
-      
+        { title: 'Local Skill Exchange Platform', category: 'Full-Stack Web / AI', description: 'A peer-to-peer learning platform with AI matching algorithms and a credit-based escrow economy.', tech: 'React, Node.js, AI Matching, Credit Escrow' },
+        { title: 'Placement Portal System', category: 'Enterprise Web / Automation', description: 'Automated campus recruitment portal featuring resume scraping and candidate skill matching.', tech: 'React, Node.js, Supabase, Web Scraper API' }
       ];
       const list = staticProjects.map((p, i) => `${i + 1}. **${p.title}** [${p.category}]\n   ${p.description}\n   🛠️ Tech: ${p.tech}`).join('\n\n');
       if (lang === 'mr') {
-        return `🚀 **नरेंद्रचे प्रमुख प्रकल्प:**\n\n${list}\n\nकोणत्याही प्रकल्पाबद्दल अधिक माहितीसाठी विचारा!`;
+        return `🚀 **${name}चे प्रमुख प्रकल्प:**\n\n${list}\n\nकोणत्याही प्रकल्पाबद्दल अधिक माहितीसाठी विचारा!`;
       }
       if (lang === 'hi') {
-        return `🚀 **नरेंद्र के प्रमुख प्रोजेक्ट्स:**\n\n${list}\n\nकिसी भी प्रोजेक्ट के बारे में अधिक जानकारी के लिए पूछें!`;
+        return `🚀 **${name} के प्रमुख प्रोजेक्ट्स:**\n\n${list}\n\nकिसी भी प्रोजेक्ट के बारे में अधिक जानकारी के लिए पूछें!`;
       }
-      return `🚀 **Narendra's Key Projects:**\n\n${list}\n\nAsk me about any project for more details!`;
+      return `🚀 **${name}'s Key Projects:**\n\n${list}\n\nAsk me about any project for more details!`;
     }
   }
 
-  // Dynamic project search from live DB
+  // Dynamic individual project search from live DB
   for (const project of live.projects) {
     const titleWords = project.title.toLowerCase().split(/\s+/);
     const tagWords = (project.tags || []).map(t => t.toLowerCase());
@@ -375,26 +497,25 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
       ).join('\n\n');
 
       if (lang === 'mr') {
-        return `🏆 **नरेंद्रची प्रमाणपत्रे** (${live.certificates.length} डेटाबेस मधून लाइव्ह):\n\n${certList}`;
+        return `🏆 **${name}ची प्रमाणपत्रे** (${live.certificates.length} डेटाबेस मधून लाइव्ह):\n\n${certList}`;
       }
       if (lang === 'hi') {
-        return `🏆 **नरेंद्र के प्रमाण पत्र** (${live.certificates.length} डेटाबेस से लाइव):\n\n${certList}`;
+        return `🏆 **${name} के प्रमाण पत्र** (${live.certificates.length} डेटाबेस से लाइव):\n\n${certList}`;
       }
-      return `🏆 **Narendra's Certificates** (${live.certificates.length} from live database):\n\n${certList}`;
+      return `🏆 **${name}'s Certificates** (${live.certificates.length} from live database):\n\n${certList}`;
     } else {
-      // Static certificate fallback
       const staticCerts = [
         { title: 'AIML Virtual Internship Certificate', issuer: 'EduSkills Foundation (AICTE-Supported)', date: 'June 2025', detail: 'Supervised ML, Scikit-Learn, AWS S3 & EC2, Boto3 automation' },
         { title: 'GenAI, ML & NLP Internship Certificate', issuer: 'EduSkills Foundation (AICTE-Supported)', date: 'June 2026', detail: 'Generative AI, NLTK, SpaCy, RAG Workflows, LLMs' },
       ];
       const staticList = staticCerts.map((c, i) => `${i + 1}. **${c.title}**\n   📋 Issued by: ${c.issuer} | 📅 ${c.date}\n   📝 Topics: ${c.detail}`).join('\n\n');
       if (lang === 'mr') {
-        return `🏆 **नरेंद्रची प्रमाणपत्रे:**\n\n${staticList}`;
+        return `🏆 **${name}ची प्रमाणपत्रे:**\n\n${staticList}`;
       }
       if (lang === 'hi') {
-        return `🏆 **नरेंद्र के प्रमाण पत्र:**\n\n${staticList}`;
+        return `🏆 **${name} के प्रमाण पत्र:**\n\n${staticList}`;
       }
-      return `🏆 **Narendra's Certificates:**\n\n${staticList}`;
+      return `🏆 **${name}'s Certificates:**\n\n${staticList}`;
     }
   }
 
@@ -402,42 +523,59 @@ function generateLocalResponse(query: string, live: LivePortfolioContext, select
   if (has(
     'experience', 'internship', 'intern', 'work', 'job', 'company', 'genxcode',
     'eduskills', 'career', 'professional', 'role', 'position', 'worked',
-    'अनुभव', 'इंटर्नशिप', 'काम', 'कंपनी', 'अनुभव'
+    'अनुभव', 'इंटर्नशिप', 'काम', 'कंपनी'
   )) {
+    const formatExpList = (l: 'mr' | 'hi' | 'en') => {
+      return expList.map((ex: any, i: number) => {
+        const r = ex.role || 'Role';
+        const comp = ex.company || 'Company';
+        const per = ex.period ? ` (${ex.period})` : '';
+        const loc = ex.location ? ` | 📍 ${ex.location}` : '';
+        const desc = ex.description || ex.responsibilities || (Array.isArray(ex.bullets) ? ex.bullets.join('. ') : '');
+        const sk = ex.skills?.length ? (Array.isArray(ex.skills) ? ex.skills.join(', ') : ex.skills) : '';
+        let card = `${i + 1}. **${r}** @ ${comp}${per}${loc}`;
+        if (desc) card += `\n   📝 ${desc}`;
+        if (sk) {
+          const skLabel = l === 'mr' ? '🛠️ कौशल्ये' : l === 'hi' ? '🛠️ स्किल्स' : '🛠️ Skills';
+          card += `\n   ${skLabel}: ${sk}`;
+        }
+        return card;
+      }).join('\n\n');
+    };
+
     if (lang === 'mr') {
-      return `💼 **नरेंद्रचा अनुभव (Experience):**\n\n1. **प्रकल्प संचालक (Project Director)** @ Genxcode (Jan 2026 — Apr 2026)\n2. **GenAI, ML आणि NLP इंटर्न** @ EduSkills (June 2026)\n3. **AIML आणि AWS क्लाउड इंटर्न** @ EduSkills (June 2025)`;
+      return `💼 **${name}चा अनुभव (Live Experience):**\n\n${formatExpList('mr')}\n\nकोणत्याही भूमिकेबद्दल अधिक माहितीसाठी विचारू शकता!`;
     }
     if (lang === 'hi') {
-      return `💼 **नरेंद्र का अनुभव (Experience):**\n\n1. **प्रोजेक्ट डायरेक्टर** @ Genxcode (Jan 2026 — Apr 2026)\n2. **GenAI, ML और NLP इंटर्न** @ EduSkills (June 2026)\n3. **AIML और AWS क्लाउड इंटर्न** @ EduSkills (June 2025)`;
+      return `💼 **${name} का अनुभव (Live Experience):**\n\n${formatExpList('hi')}\n\nकिसी भी पद या कंपनी के बारे में विस्तार से पूछ सकते हैं!`;
     }
-    const lines = (EX as any[]).map((ex: any, i: number) => `${i + 1}. **${ex.role}** @ ${ex.company} (${ex.period})`).join('\n');
-    return `💼 **Narendra's Experience:**\n\n${lines}\n\nAsk me about any specific role for full details!`;
+    return `💼 **${name}'s Experience & Internships (Live Experience):**\n\n${formatExpList('en')}\n\nAsk me about any specific role for full details!`;
   }
 
   // ── LANGUAGE SWITCH ──
   if (has('speak in english', 'reply in english', 'answer in english', 'english me', 'english mein')) {
-    return `👋 Sure! I'll respond in English now.\n\n**What would you like to know about Narendra Gond?**\n\n• 👨‍💻 **About** — background, bio, philosophy\n• 🎓 **Education** — JSPM University, CGPA, subjects\n• 🛠️ **Skills** — Python, DSA, React, AI/ML, AWS\n• 🚀 **Projects** — ${live.projects.length > 0 ? `${live.projects.length} live from DB` : 'VisionTrack, Skill Exchange, Placement Portal'}\n• 🏆 **Certificates** — ${live.certificates.length > 0 ? `${live.certificates.length} certifications` : 'AI/ML & AWS Cloud'}\n• 💼 **Experience** — Genxcode, EduSkills internships\n• 📧 **Contact** — email, GitHub, LinkedIn\n\nJust ask naturally! 😊`;
+    return `👋 Sure! I'll respond in English now.\n\n**What would you like to know about ${name}?**\n\n• 👨‍💻 **About** — background, bio, philosophy\n• 🎓 **Education** — ${eduInstitution}, CGPA, degree\n• 🛠️ **Skills** — ${hasColSkills ? skillsCol1.slice(0, 4).join(', ') : 'Python, React, AWS, AI/ML'}\n• 🚀 **Projects** — ${live.projects.length > 0 ? `${live.projects.length} live from DB` : 'VisionTrack, Skill Exchange'}\n• 🏆 **Certificates** — ${live.certificates.length > 0 ? `${live.certificates.length} certifications` : 'AI/ML & AWS Cloud'}\n• 💼 **Experience** — ${expList.length} professional experiences\n• 📧 **Contact** — email, GitHub, LinkedIn\n\nJust ask naturally! 😊`;
   }
 
   // ── CONTACT ──
   if (has('contact', 'reach', 'message', 'email', 'mail', 'github', 'linkedin', 'connect', 'संपर्क', 'ईमेल', 'गिटहब')) {
     if (lang === 'mr') {
-      return `📬 **नरेंद्रशी संपर्क साधा:**\n\n📧 ईमेल: **${C.email}**\n💻 GitHub: **${C.github}** (@${C.githubUsername})\n🔗 LinkedIn: **${C.linkedin}**\n📍 स्थान: ${C.location}\n\nपोर्टफोलिओवरील संपर्क फॉर्म (Contact Form) वापरून थेट संदेश पाठवा!`;
+      return `📬 **${name}शी संपर्क साधा:**\n\n📧 ईमेल: **${C.email}**\n💻 GitHub: **${C.github}** (@${C.githubUsername})\n🔗 LinkedIn: **${C.linkedin}**\n📍 स्थान: ${location}\n\nपोर्टफोलिओवरील संपर्क फॉर्म (Contact Form) वापरून थेट संदेश पाठवा!`;
     }
     if (lang === 'hi') {
-      return `📬 **नरेंद्र से संपर्क करें:**\n\n📧 ईमेल: **${C.email}**\n💻 GitHub: **${C.github}** (@${C.githubUsername})\n🔗 LinkedIn: **${C.linkedin}**\n📍 स्थान: ${C.location}\n\nपोर्टफोलियो के संपर्क फॉर्म (Contact Form) का उपयोग करके सीधे संदेश भेजें!`;
+      return `📬 **${name} से संपर्क करें:**\n\n📧 ईमेल: **${C.email}**\n💻 GitHub: **${C.github}** (@${C.githubUsername})\n🔗 LinkedIn: **${C.linkedin}**\n📍 स्थान: ${location}\n\nपोर्टफोलियो के संपर्क फॉर्म (Contact Form) का उपयोग करके सीधे संदेश भेजें!`;
     }
-    return `📬 **Contact Narendra:**\n\n📧 Email: ${C.email}\n💻 GitHub: ${C.github}\n🔗 LinkedIn: ${C.linkedin}\n📍 Location: ${C.location}\n\nOr use the **Contact Form** directly on this portfolio!`;
+    return `📬 **Contact ${name}:**\n\n📧 Email: ${C.email}\n💻 GitHub: ${C.github}\n🔗 LinkedIn: ${C.linkedin}\n📍 Location: ${location}\n\nOr use the **Contact Form** directly on this portfolio!`;
   }
 
   // ── DEFAULT FRIENDLY FALLBACK ──
   if (lang === 'mr') {
-    return ` मला पूर्णपणे समजले नाही — पण मी मदतीसाठी तयार आहे!\n\n**तुम्हाला नरेंद्र गोंडबद्दल काय जाणून घ्यायचे आहे?**\n\n• 👨‍💻 **परिचय** — पार्श्वभूमी आणि करिअर ध्येय\n• 🎓 **शिक्षण** — JSPM युनिव्हर्सिटी आणि CGPA\n• 🛠️ **कौशल्ये** — Python, DSA, React, AI/ML, AWS\n• 🚀 **प्रकल्प** — ${live.projects.length > 0 ? `${live.projects.length} लाइव्ह प्रोजेक्ट्स` : 'VisionTrack'}\n• 🏆 **प्रमाणपत्रे** — AI/ML आणि AWS क्लाउड\n• 💼 **अनुभव** — Genxcode आणि EduSkills इंटर्नशिप\n• 📧 **संपर्क** — ईमेल आणि सोशल मीडिया\n\nतुम्ही मराठी, हिंदी किंवा इंग्रजीत सहजपणे विचारू शकता! `;
+    return `🤔 मला पूर्णपणे समजले नाही — पण मी मदतीसाठी तयार आहे!\n\n**तुम्हाला ${name}बद्दल काय जाणून घ्यायचे आहे?**\n\n• 👨‍💻 **परिचय** — पार्श्वभूमी आणि करिअर ध्येय\n• 🎓 **शिक्षण** — ${eduInstitution} आणि CGPA (${eduCgpa})\n• 🛠️ **कौशल्ये** — ${hasColSkills ? skillsCol1.slice(0, 3).join(', ') : 'Python, React, AWS'}\n• 🚀 **प्रकल्प** — ${live.projects.length > 0 ? `${live.projects.length} लाइव्ह प्रोजेक्ट्स` : 'VisionTrack'}\n• 🏆 **प्रमाणपत्रे** — AI/ML आणि AWS क्लाउड\n• 💼 **अनुभव** — ${expList.length} अद्ययावत भूमिका\n• 📧 **संपर्क** — ईमेल आणि सोशल मीडिया\n\nतुम्ही मराठी, हिंदी किंवा इंग्रजीत सहजपणे विचारू शकता! 😊`;
   }
   if (lang === 'hi') {
-    return ` मैं पूरी तरह से समझ नहीं पाया — लेकिन मैं मदद के लिए तैयार हूँ!\n\n**आप नरेंद्र गोंड के बारे में क्या जानना चाहते हैं?**\n\n• 👨‍💻 **परिचय** — पृष्ठभूमि और करियर लक्ष्य\n• 🎓 **शिक्षा** — JSPM यूनिवर्सिटी और CGPA\n• 🛠️ **कौशल** — Python, DSA, React, AI/ML, AWS\n• 🚀 **प्रोजेक्ट्स** — ${live.projects.length > 0 ? `${live.projects.length} लाइव प्रोजेक्ट्स` : 'VisionTrack'}\n• 🏆 **प्रमाण पत्र** — AI/ML और AWS क्लाउड\n• 💼 **अनुभव** — Genxcode और EduSkills इंटर्नशिप\n• 📧 **संपर्क** — ईमेल और सोशल मीडिया\n\nआप हिंदी, मराठी या अंग्रेजी में आसानी से पूछ सकते हैं! `;
+    return `🤔 मैं पूरी तरह से समझ नहीं पाया — लेकिन मैं मदद के लिए तैयार हूँ!\n\n**आप ${name} के बारे में क्या जानना चाहते हैं?**\n\n• 👨‍💻 **परिचय** — पृष्ठभूमि और करियर लक्ष्य\n• 🎓 **शिक्षा** — ${eduInstitution} और CGPA (${eduCgpa})\n• 🛠️ **कौशल** — ${hasColSkills ? skillsCol1.slice(0, 3).join(', ') : 'Python, React, AWS'}\n• 🚀 **प्रोजेक्ट्स** — ${live.projects.length > 0 ? `${live.projects.length} लाइव प्रोजेक्ट्स` : 'VisionTrack'}\n• 🏆 **प्रमाण पत्र** — AI/ML और AWS क्लाउड\n• 💼 **अनुभव** — ${expList.length} अपडेटेड भूमिकाएं\n• 📧 **संपर्क** — ईमेल और सोशल मीडिया\n\nआप हिंदी, मराठी या अंग्रेजी में आसानी से पूछ सकते हैं! 😊`;
   }
-  return `🤔 I didn't quite catch that — but I'm here to help!\n\n**What would you like to know about Narendra Gond?**\n\n• 👨‍💻 **About** — background, bio, philosophy\n• 🎓 **Education** — JSPM University, CGPA, subjects\n• 🛠️ **Skills** — Python, DSA, React, AI/ML, AWS\n• 🚀 **Projects** — ${live.projects.length > 0 ? `${live.projects.length} live projects: ${live.projects.slice(0, 2).map(p => p.title).join(', ')}...` : 'VisionTrack, Skill Exchange, Placement Portal...'}\n• 🏆 **Certificates** — ${live.certificates.length > 0 ? `${live.certificates.length} certifications` : 'professional certifications'}\n• 💼 **Experience** — Genxcode, EduSkills internships\n• 📧 **Contact** — email, GitHub, LinkedIn, availability\n\nJust ask naturally — I understand English, हिंदी, and मराठी! `;
+  return `🤔 I didn't quite catch that — but I'm here to help!\n\n**What would you like to know about ${name}?**\n\n• 👨‍💻 **About** — background, bio, philosophy\n• 🎓 **Education** — ${eduInstitution}, CGPA (${eduCgpa})\n• 🛠️ **Skills** — ${hasColSkills ? skillsCol1.slice(0, 4).join(', ') : 'Python, React, AWS, AI/ML'}\n• 🚀 **Projects** — ${live.projects.length > 0 ? `${live.projects.length} live projects` : 'VisionTrack, Skill Exchange...'}\n• 🏆 **Certificates** — certifications and achievements\n• 💼 **Experience** — ${expList.length} updated experiences\n• 📧 **Contact** — email, GitHub, LinkedIn\n\nJust ask naturally — I understand English, हिंदी, and मराठी! 😊`;
 }
 
 // ─── Main Component ────────────────────────────────────────────
@@ -474,62 +612,103 @@ export default function PortfolioChat() {
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // ── Fetch all live portfolio data on mount ──
-  useEffect(() => {
-    const loadAllData = async () => {
-      setIsLoadingData(true);
+  // ── Fetch all live portfolio data ──
+  const loadAllData = useCallback(async () => {
+    setIsLoadingData(true);
+    try {
+      let cachedAbout: any = null;
+      let cachedSkills: any = null;
+      let cachedExp: any = null;
+      let cachedProfile: any = null;
+      let cachedProjects: any = null;
+
       try {
-        const [projects, certificates, customAbout, customSkills, customExperience, customProfile] =
-          await Promise.allSettled([
-            fetchProjects(),
-            fetchCertificates(),
-            fetchPortfolioSetting<any>('portfolio_custom_about'),
-            fetchPortfolioSetting<any>('portfolio_custom_skills'),
-            fetchPortfolioSetting<any>('portfolio_custom_experience'),
-            fetchPortfolioSetting<any>('portfolio_custom_profile'),
-          ]);
+        const sAbout = localStorage.getItem('portfolio_custom_about');
+        if (sAbout) cachedAbout = JSON.parse(sAbout);
+        const sSkills = localStorage.getItem('portfolio_custom_skills');
+        if (sSkills) cachedSkills = JSON.parse(sSkills);
+        const sExp = localStorage.getItem('portfolio_custom_experience');
+        if (sExp) cachedExp = JSON.parse(sExp);
+        const sProf = localStorage.getItem('portfolio_custom_profile');
+        if (sProf) cachedProfile = JSON.parse(sProf);
+        const sProj = localStorage.getItem('portfolio_custom_projects');
+        if (sProj) cachedProjects = JSON.parse(sProj);
+      } catch (e) {}
 
-        const newData: LivePortfolioContext = {
-          projects: projects.status === 'fulfilled' && projects.value ? projects.value : [],
-          certificates: certificates.status === 'fulfilled' && certificates.value ? certificates.value : [],
-          customAbout: customAbout.status === 'fulfilled' ? customAbout.value : null,
-          customSkills: customSkills.status === 'fulfilled' ? customSkills.value : null,
-          customExperience: customExperience.status === 'fulfilled' ? customExperience.value : null,
-          customProfile: customProfile.status === 'fulfilled' ? customProfile.value : null,
-          loaded: true,
-        };
-
-       
-    
-      } catch (err) {
-        setLiveData(prev => ({ ...prev, loaded: true }));
-        setMessages(prev => [
-          ...prev,
-          {
-            id: 'data-fallback',
-            sender: 'ai',
-            text: `ℹ️ Using cached portfolio data. I can still answer all questions about Narendra's skills, projects, experience, and more!\n\nWhat would you like to know? 😊`,
-            timestamp: new Date(),
-          },
+      const [projects, certificates, customAbout, customSkills, customExperience, customProfile] =
+        await Promise.allSettled([
+          fetchProjects(),
+          fetchCertificates(),
+          fetchPortfolioSetting<any>('portfolio_custom_about'),
+          fetchPortfolioSetting<any>('portfolio_custom_skills'),
+          fetchPortfolioSetting<any>('portfolio_custom_experience'),
+          fetchPortfolioSetting<any>('portfolio_custom_profile'),
         ]);
-      } finally {
-        setIsLoadingData(false);
-      }
+
+      const dbProjects = projects.status === 'fulfilled' && projects.value ? projects.value : [];
+      const dbAbout = customAbout.status === 'fulfilled' && customAbout.value ? customAbout.value : null;
+      const dbSkills = customSkills.status === 'fulfilled' && customSkills.value ? customSkills.value : null;
+      const dbExp = customExperience.status === 'fulfilled' && customExperience.value ? customExperience.value : null;
+      const dbProf = customProfile.status === 'fulfilled' && customProfile.value ? customProfile.value : null;
+
+      const finalAbout = dbAbout || cachedAbout;
+      const finalSkills = dbSkills || cachedSkills;
+      const finalExp = (dbExp && Array.isArray(dbExp) && dbExp.length > 0) ? dbExp : (cachedExp || null);
+      const finalProf = dbProf || cachedProfile;
+      const finalProjects = dbProjects.length > 0 ? dbProjects : (cachedProjects || []);
+
+      if (dbAbout) localStorage.setItem('portfolio_custom_about', JSON.stringify(dbAbout));
+      if (dbSkills) localStorage.setItem('portfolio_custom_skills', JSON.stringify(dbSkills));
+      if (dbExp) localStorage.setItem('portfolio_custom_experience', JSON.stringify(dbExp));
+      if (dbProf) localStorage.setItem('portfolio_custom_profile', JSON.stringify(dbProf));
+
+      const newData: LivePortfolioContext = {
+        projects: finalProjects,
+        certificates: certificates.status === 'fulfilled' && certificates.value ? certificates.value : [],
+        customAbout: finalAbout,
+        customSkills: finalSkills,
+        customExperience: finalExp,
+        customProfile: finalProf,
+        loaded: true,
+      };
+
+      setLiveData(newData);
+    } catch (err) {
+      setLiveData(prev => ({ ...prev, loaded: true }));
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAllData();
+
+    const handleDataUpdate = () => {
+      loadAllData();
     };
 
-    loadAllData();
-  }, []);
+    window.addEventListener('storage', handleDataUpdate);
+    window.addEventListener('portfolio_profile_updated', handleDataUpdate);
+    window.addEventListener('portfolio_experiences_updated', handleDataUpdate);
+    window.addEventListener('portfolio_about_updated', handleDataUpdate);
+    window.addEventListener('portfolio_skills_updated', handleDataUpdate);
+    window.addEventListener('portfolio_projects_updated', handleDataUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleDataUpdate);
+      window.removeEventListener('portfolio_profile_updated', handleDataUpdate);
+      window.removeEventListener('portfolio_experiences_updated', handleDataUpdate);
+      window.removeEventListener('portfolio_about_updated', handleDataUpdate);
+      window.removeEventListener('portfolio_skills_updated', handleDataUpdate);
+      window.removeEventListener('portfolio_projects_updated', handleDataUpdate);
+    };
+  }, [loadAllData]);
 
   const refreshData = async () => {
     setIsLoadingData(true);
     try {
-      const [projects, certificates] = await Promise.allSettled([fetchProjects(), fetchCertificates()]);
-      setLiveData(prev => ({
-        ...prev,
-        projects: projects.status === 'fulfilled' && projects.value ? projects.value : prev.projects,
-        certificates: certificates.status === 'fulfilled' && certificates.value ? certificates.value : prev.certificates,
-      }));
-      addAIMessage(`🔄 Data refreshed!\n• 🚀 Projects: ${projects.status === 'fulfilled' && projects.value ? projects.value.length : 0}\n• 🏆 Certificates: ${certificates.status === 'fulfilled' && certificates.value ? certificates.value.length : 0}`);
+      await loadAllData();
+      addAIMessage(`🔄 Portfolio data refreshed successfully!\n• 🚀 Live Projects: ${liveData.projects.length}\n• 🏆 Certificates: ${liveData.certificates.length}\n• 👨‍💻 All profile, skills, education, and experience data synchronized.`);
     } catch (e) {
       addAIMessage('⚠️ Refresh failed — still using cached data.');
     } finally {
@@ -725,8 +904,11 @@ export default function PortfolioChat() {
       setSelectedLang('hi-IN');
     }
 
+    // Get latest real-time data including immediate local edits
+    const freshLiveData = getLatestLiveData(liveData);
+
     // Build context with live data for backend prompt with explicit language instruction
-    let context = buildContext(liveData);
+    let context = buildContext(freshLiveData);
     if (detectedLang === 'mr' || activeLang === 'mr-IN') {
       context += '\n\n[CRITICAL SYSTEM INSTRUCTION: The user is speaking/asking in MARATHI. You MUST reply completely in MARATHI language using Devanagari script.]';
     } else if (detectedLang === 'hi' || activeLang === 'hi-IN') {
@@ -759,7 +941,7 @@ export default function PortfolioChat() {
       }
     } catch {
       // Local smart fallback with live data and language selection
-      aiReplyText = generateLocalResponse(textToSend, liveData, activeLang);
+      aiReplyText = generateLocalResponse(textToSend, freshLiveData, activeLang);
     }
 
     const aiMsg: Message = { id: Math.random().toString(), sender: 'ai', text: aiReplyText, timestamp: new Date() };

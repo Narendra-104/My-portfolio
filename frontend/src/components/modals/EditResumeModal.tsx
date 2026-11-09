@@ -137,6 +137,8 @@ export default function EditResumeModal({ isOpen, onClose, onSave, experiences: 
       localStorage.removeItem('portfolio_custom_experience');
 
       window.dispatchEvent(new CustomEvent('portfolio_experiences_updated', { detail: EXPERIENCE_DATA }));
+      window.dispatchEvent(new CustomEvent('portfolio_about_updated', { detail: null }));
+      window.dispatchEvent(new CustomEvent('portfolio_skills_updated', { detail: null }));
 
       setSaving(false);
       onSave?.();
@@ -188,6 +190,8 @@ export default function EditResumeModal({ isOpen, onClose, onSave, experiences: 
       
       // Dispatch live update event
       window.dispatchEvent(new CustomEvent('portfolio_experiences_updated', { detail: experiences }));
+      window.dispatchEvent(new CustomEvent('portfolio_about_updated', { detail: customAbout }));
+      window.dispatchEvent(new CustomEvent('portfolio_skills_updated', { detail: finalSkills }));
 
       setSaving(false);
       onSave?.();

@@ -128,6 +128,7 @@ export default function EditAboutModal({ isOpen, onClose, onSave }: EditAboutMod
   const handleResetDefaults = () => {
     if (confirm('Reset About Me sections to defaults?')) {
       localStorage.removeItem('portfolio_custom_about');
+      window.dispatchEvent(new CustomEvent('portfolio_about_updated', { detail: null }));
       onSave?.();
       onClose();
     }
@@ -164,6 +165,8 @@ export default function EditAboutModal({ isOpen, onClose, onSave }: EditAboutMod
 
       // 2. Save to LocalStorage cache
       localStorage.setItem('portfolio_custom_about', JSON.stringify(customAbout));
+
+      window.dispatchEvent(new CustomEvent('portfolio_about_updated', { detail: customAbout }));
 
       setSaving(false);
       onSave?.();
